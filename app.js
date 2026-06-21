@@ -392,16 +392,56 @@ function updateHUD() {
     document.getElementById('xp-bar').style.width = `${xpPercent}%`;
 }
 
+function gameOver() {
+    isPaused = true;
+    document.getElementById('game-over-screen').classList.remove('hidden');
+}
+
+// Draw function implementing modern graphics and smooth rendering
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // Technical Background Grid
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.02)';
+    // 1. Technical Background Grid
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
     ctx.lineWidth = 1;
     for (let i = 0; i < gridCount; i++) {
         ctx.beginPath(); ctx.moveTo(i * tileSize, 0); ctx.lineTo(i * tileSize, canvas.height); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(0, i * tileSize); ctx.lineTo(canvas.width, i * tileSize); ctx.stroke();
     }
     
-    // Draw Active Foods
-    ctx.fillStyle = '#ff0
+    // 2. Draw Active Foods (Glowing Biotech Orbs)
+    foods.forEach(food => {
+        let fx = food.x * tileSize + tileSize / 2;
+        let fy = food.y * tileSize + tileSize / 2;
+        let radius = (tileSize / 2.5) + Math.sin(Date.now() / 150) * 1.5;
+        
+        ctx.save();
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = '#ff007f';
+        
+        let grad = ctx.createRadialGradient(fx, fy, 2, fx, fy, radius);
+        grad.addColorStop(0, '#ffffff');
+        grad.addColorStop(0.4, '#ff007f');
+        grad.addColorStop(1, 'rgba(255, 0, 127, 0)');
+        
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(fx, fy, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    });
+
+    // 3. Draw Regular Enemies (Floating Cyber-Drones)
+    enemies.forEach(enemy => {
+        let hoverY = Math.sin((Date.now() / 200) + (enemy.x * enemy.y)) * 4;
+        let ex = enemy.x * tileSize + tileSize / 2;
+        let ey = enemy.y * tileSize + tileSize / 2 + hoverY;
+        let size = tileSize * 0.7;
+
+        ctx.save();
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#a124db';
+
+        ctx.fillStyle = '#a124db';
+        ctx.beginPath();
+        ctx.moveTo(ex, ey - size/2);
