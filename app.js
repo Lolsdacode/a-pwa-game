@@ -445,3 +445,145 @@ function draw() {
         ctx.fillStyle = '#a124db';
         ctx.beginPath();
         ctx.moveTo(ex, ey - size/2);
+        ctx.lineTo(ex + size/2, ey);
+        ctx.lineTo(ex, ey + size/2);
+        ctx.lineTo(ex - size/2, ey);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = '#00ffff';
+        ctx.beginPath();
+        ctx.arc(ex, ey, size * 0.18, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    });
+
+    // 4. Draw Boss Entity (Massive Core Leviathan)
+    bosses.forEach(boss => {
+        let bx = boss.x * tileSize + tileSize / 2;
+        let by = boss.y * tileSize + tileSize / 2;
+        let pulseSize = (tileSize * 1.6) + Math.sin(Date.now() / 100) * 3;
+
+        ctx.save();
+        if (boss.flashFrames > 0) {
+            ctx.fillStyle = '#ffffff';
+            boss.flashFrames--;
+            ctx.shadowColor = '#ffffff';
+        } else {
+            ctx.fillStyle = '#ff0055';
+            ctx.shadowColor = '#ff0055';
+        }
+        ctx.shadowBlur = 25;
+
+        ctx.beginPath();
+        ctx.arc(bx, by, pulseSize / 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#111116';
+        ctx.beginPath();
+        ctx.arc(bx, by, pulseSize / 3, 0, Math.PI * 2);
+        ctx.fill();
+
+        let barW = tileSize * 2;
+        let barH = 5;
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(bx - barW/2, by - tileSize, barW, barH);
+        ctx.fillStyle = '#ff0055';
+        ctx.fillRect(bx - barW/2, by - tileSize, barW * (boss.hp / boss.maxHp), barH);
+
+        ctx.restore();
+    });
+
+    // 5. Draw Smooth-Flowing Snake Body
+    for (let i = snake.length - 1; i >= 0; i--) {
+        let part = snake[i];
+        let rx = part.x * tileSize + tileSize / 2;
+        let ry = part.y * tileSize + tileSize / 2;
+
+        ctx.save();
+        
+        if (i === 0) {
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#00ffcc';
+            ctx.fillStyle = '#00ffcc';
+            
+            ctx.beginPath();
+            ctx.arc(rx, ry, tileSize * 0.48, 0, Math.PI * 2);
+            ctx.fill();
+
+            let eyeOffset = tileSize * 0.18;
+            let lookAheadX = lastValidDirection.x * 6;
+            let lookAheadY = lastValidDirection.y * 6;
+            
+            ctx.fillStyle = '#ffffff';
+            let perpX = -lastValidDirection.y * eyeOffset;
+            let perpY = lastValidDirection.x * eyeOffset;
+
+            ctx.beginPath();
+            ctx.arc(rx + perpX + lookAheadX, ry + perpY + lookAheadY, 3, 0, Math.PI * 2);
+            ctx.arc(rx - perpX + lookAheadX, ry - perpY + lookAheadY, 3, 0, Math.PI * 2);
+            ctx.fill();
+            
+        } else {
+            let progress = i / snake.length; 
+            let bodySize = (tileSize * 0.42) * (1 - progress * 0.5); 
+            
+            if (shieldCount > 0) {
+                ctx.strokeStyle = 'rgba(0, 255, 255, 0.4)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(rx, ry, bodySize + 3, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+
+            ctx.fillStyle = (i % 2 === 0) ? '#00b399' : '#00806d';
+            ctx.beginPath();
+            ctx.arc(rx, ry, bodySize, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
+    }
+
+    // 6. Draw Plasma Projectiles
+    projectiles.forEach(proj => {
+        let px = proj.x * tileSize + tileSize / 2;
+        let py = proj.y * tileSize + tileSize / 2;
+        
+        ctx.save();
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = '#00ffff';
+        ctx.fillStyle = '#00ffff';
+        ctx.beginPath();
+        ctx.arc(px, py, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    });
+
+    // 7. Draw FX Particles
+    particles.forEach(p => {
+        ctx.save();
+        ctx.globalAlpha = p.alpha;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    });
+}
+
+// Keyboard Listeners
+window.addEventListener('keydown', e => {
+    switch (e.key) {
+        case 'ArrowUp':    case 'w': if (lastValidDirection.y !== 1)  nextDirection = { x: 0, y: -1 }; break;
+        case 'ArrowDown':  case 's': if (lastValidDirection.y !== -1) nextDirection = { x: 0, y: 1 };  break;
+        case 'ArrowLeft':  case 'a': if (lastValidDirection.x !== 1)  nextDirection = { x: -1, y: 0 }; break;
+        case 'ArrowRight': case 'd': if (lastValidDirection.x !== -1) nextDirection = { x: 1, y: 0 };  break;
+    }
+});
+
+// Setup resize triggers and initialize
+window.addEventListener('resize', resizeCanvas);
+
+window.onload = () => {
+    initGame();
+};
