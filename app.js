@@ -1,43 +1,76 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-// Game state variables
+// Game grid & smooth translation state
 let gridCount = 20;
 let tileSize;
-let snake, direction, nextDirection, food, enemies, projectiles;
+let snake = []; 
+let direction = { x: 0, y: -1 };
+let nextDirection = { x: 0, y: -1 };
+let lastValidDirection = { x: 0, y: -1 };
+
+// Entity Pools
+let foods = []; // Now supports multiple items
+let enemies = [];
+let projectiles = [];
+let particles = [];
+let bosses = [];
+
+// Game Systems
 let score, level, xp, xpNeeded, hp;
 let gameInterval, isPaused;
+let progressTimer = 0; 
 
-// Upgrade mechanics
-let attackSpeed = 0; // chance to auto-fire fireballs
+// Upgrades
+let attackSpeed = 0; 
 let shieldCount = 0;
 let hasSpikes = false;
+let maxFoodCount = 1; // Upgradable field
+let lastShotTime = 0;
 
 const upgradesPool = [
-    { id: 'hp', title: '+1 Heart', desc: 'Heals 1 lost health point' },
-    { id: 'fireball', title: 'Fireball Staff', desc: 'Periodically shoots fireballs at enemies' },
-    { id: 'shield', title: 'Energy Shield', desc: 'Absorbs 1 instance of wall or enemy collision damage' },
-    { id: 'spikes', title: 'Plasma Spikes', desc: 'Destroying food also kills adjacent enemies' }
+    { id: 'hp', title: '❤️ Bio-Repair', desc: 'Heals 1 lost heart (Max 5)' },
+    { id: 'fireball', title: '🔥 Plasma Blaster', desc: 'Auto-fires projectiles rapidly at close targets' },
+    { id: 'shield', title: '🛡️ Kinetic Shield', desc: 'Absorbs one collision with walls or targets' },
+    { id: 'spikes', title: '⚡ Nova Spikes', desc: 'Eaten food triggers an explosion killing near enemies' },
+    { id: 'more_food', title: '🍎 Scout Radar', desc: 'Permanently increases the active food count on the field' }
 ];
 
 function initGame() {
     resizeCanvas();
-    snake = [{x: 10, y: 10}];
-    direction = {x: 0, y: -1};
-    nextDirection = {x: 0, y: -1};
-    food = getRandomGridPosition();
+    
+    // Smooth positions track float values for sub-grid rendering
+    snake = [
+        { x: 10, y: 10, targetX: 10, targetY: 10 },
+        { x: 10, y: 11, targetX: 10, targetY: 11 },
+        { x: 10, y: 12, targetX: 10, targetY: 12 }
+    ];
+    
+    direction = { x: 0, y: -1 };
+    nextDirection = { x: 0, y: -1 };
+    lastValidDirection = { x: 0, y: -1 };
+    
     enemies = [];
     projectiles = [];
+    particles = [];
+    bosses = [];
+    foods = [];
+    
     score = 0; level = 1; xp = 0; xpNeeded = 3; hp = 3;
-    attackSpeed = 0; shieldCount = 0; hasSpikes = false;
+    attackSpeed = 0; shieldCount = 0; hasSpikes = false; maxFoodCount = 1;
     isPaused = false;
+    progressTimer = 0;
+    
+    // Spawn initial setup
+    refillFood();
     
     updateHUD();
     document.getElementById('game-over-screen').classList.add('hidden');
     document.getElementById('upgrade-screen').classList.add('hidden');
     
     if(gameInterval) clearInterval(gameInterval);
-    gameInterval = setInterval(gameLoop, 150);
+    // Increased update rate (60fps loop) for high-precision movement animation
+    gameInterval = setInterval(updateTick, 1000 / 60); 
 }
 
 function resizeCanvas() {
@@ -47,54 +80,91 @@ function resizeCanvas() {
     tileSize = Math.floor(canvas.width / gridCount);
 }
 
-function gameLoop() {
+function createExplosion(gridX, gridY, color, count = 8) {
+    for (let i = 0; i < count; i++) {
+        particles.push({
+            x: gridX * tileSize + tileSize / 2,
+            y: gridY * tileSize + tileSize / 2,
+            vx: (Math.random() - 0.5) * 5,
+            vy: (Math.random() - 0.5) * 5,
+            radius: Math.random() * 2.5 + 1,
+            alpha: 1,
+            color: color
+        });
+    }
+}
+
+function getSafeGridPosition() {
+    let attempts = 0;
+    while (attempts < 150) {
+        let pos = {
+            x: Math.floor(Math.random() * gridCount),
+            y: Math.floor(Math.random() * gridCount)
+        };
+        let onSnake = snake.some(p => Math.round(p.targetX) === pos.x && Math.round(p.targetY) === pos.y);
+        let onFood = foods.some(f => f.x === pos.x && f.y === pos.y);
+        let onEnemy = enemies.some(e => e.x === pos.x && e.y === pos.y);
+        let onBoss = bosses.some(b => b.x === pos.x && b.y === pos.y);
+        
+        if (!onSnake && !onFood && !onEnemy && !onBoss) return pos;
+        attempts++;
+    }
+    return { x: Math.floor(Math.random() * gridCount), y: Math.floor(Math.random() * gridCount) };
+}
+
+function refillFood() {
+    while (foods.length < maxFoodCount) {
+        foods.push(getSafeGridPosition());
+    }
+}
+
+function spawnEnemy() {
+    // Only spawn regular layout mobs if there isn't an active boss fight
+    if (bosses.length === 0 && Math.random() > 0.3) {
+        enemies.push(getSafeGridPosition());
+    }
+}
+
+function spawnBoss() {
+    bosses.push({
+        x: Math.floor(gridCount / 2),
+        y: Math.floor(gridCount / 2),
+        hp: 5,
+        maxHp: 5,
+        flashFrames: 0
+    });
+    createExplosion(gridCount/2, gridCount/2, '#ff0055', 30);
+}
+
+// Global engine running at high frame rate
+function updateTick() {
     if (isPaused) return;
-    
-    // Update snake vector direction
-    direction = nextDirection;
-    
-    // Calculate new head position
-    const head = { x: snake[0].x + direction.x, y: snake[0].y + direction.y };
-    
-    // Wall Collision with Roguelike Shield Check
-    if (head.x < 0 || head.x >= gridCount || head.y < 0 || head.y >= gridCount) {
-        if (shieldCount > 0) {
-            shieldCount--;
-            bounceBack();
-            updateHUD();
-            return;
-        } else {
-            gameOver();
-            return;
-        }
-    }
 
-    // Self Collision
-    for (let i = 1; i < snake.length; i++) {
-        if (snake[i].x === head.x && snake[i].y === head.y) {
-            gameOver();
-            return;
-        }
-    }
+    // Linear Interpolation loop smoothing physics updates
+    let head = snake[0];
+    let distanceToTarget = Math.hypot(head.targetX - head.x, head.targetY - head.y);
+    
+    // Constant transition pacing variable
+    let moveStepSpeed = 0.22; 
 
-    // Move Snake forward
-    snake.unshift(head);
-
-    // Eating food mechanics
-    if (head.x === food.x && head.y === food.y) {
-        score += 10;
-        xp++;
-        if (hasSpikes) triggerSpikes(food);
-        food = getRandomGridPosition();
-        spawnEnemy();
-        if (xp >= xpNeeded) {
-            triggerLevelUp();
-        }
+    if (distanceToTarget > 0.01) {
+        // Linearly slide each body segment smoothly toward its grid target location
+        snake.forEach(part => {
+            part.x += (part.targetX - part.x) * moveStepSpeed;
+            part.y += (part.targetY - part.y) * moveStepSpeed;
+        });
     } else {
-        snake.pop();
+        // Snaps perfectly to the grid cells when targets are reached
+        snake.forEach(part => {
+            part.x = part.targetX;
+            part.y = part.targetY;
+        });
+        
+        // Execute a step forward on grid mechanics
+        advanceGridStep();
     }
 
-    // Move & Check Projectiles
+    // High frequency projectile updates
     projectiles.forEach((proj, pIdx) => {
         proj.x += proj.vx;
         proj.y += proj.vy;
@@ -103,92 +173,196 @@ function gameLoop() {
         }
     });
 
-    // Enemy handling & combat loops
+    // Update floating decorative particles
+    particles.forEach((p, index) => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.alpha -= 0.03;
+        if (p.alpha <= 0) particles.splice(index, 1);
+    });
+
+    draw();
+}
+
+// Logic triggered precisely when a snake matches tile coords
+function advanceGridStep() {
+    direction = nextDirection;
+    lastValidDirection = direction; // Capture actual heading angle
+
+    let currentHead = snake[0];
+    let nextX = currentHead.targetX + direction.x;
+    let nextY = currentHead.targetY + direction.y;
+
+    // Boundary Wall Crashes
+    if (nextX < 0 || nextX >= gridCount || nextY < 0 || nextY >= gridCount) {
+        if (shieldCount > 0) {
+            shieldCount--;
+            createExplosion(currentHead.targetX, currentHead.targetY, '#00ffcc', 12);
+            nextDirection = { x: -direction.x, y: -direction.y };
+            updateHUD();
+            return;
+        } else {
+            gameOver();
+            return;
+        }
+    }
+
+    // Body Self Collisions
+    for (let i = 1; i < snake.length; i++) {
+        if (snake[i].targetX === nextX && snake[i].targetY === nextY) {
+            gameOver();
+            return;
+        }
+    }
+
+    // Prepend a fresh tracking point onto our snake array chain
+    let newHeadTarget = { x: currentHead.targetX, y: currentHead.targetY, targetX: nextX, targetY: nextY };
+    snake.unshift(newHeadTarget);
+
+    // Collision Check: Eating Food 
+    let eatenFoodIdx = foods.findIndex(f => f.x === nextX && f.y === nextY);
+    if (eatenFoodIdx !== -1) {
+        foods.splice(eatenFoodIdx, 1);
+        score += 10;
+        xp++;
+        createExplosion(nextX, nextY, '#ff007f', 15);
+        
+        if (hasSpikes) triggerSpikes(nextX, nextY);
+        refillFood();
+        spawnEnemy();
+        
+        if (xp >= xpNeeded) {
+            triggerLevelUp();
+        }
+    } else {
+        // Normal step means discarding tail block target
+        snake.pop();
+    }
+
+    // Check entity collisions at static node intervals
+    checkCombatCollisions(nextX, nextY);
+
+    // Auto weapon fire logic
+    if (attackSpeed > 0) {
+        let now = Date.now();
+        if (now - lastShotTime > (1000 / attackSpeed)) {
+            fireProjectiles();
+            lastShotTime = now;
+        }
+    }
+}
+
+function checkCombatCollisions(headGridX, headGridY) {
+    // 1. Regular Enemies vs Snake Head
     enemies.forEach((enemy, eIdx) => {
-        // Projectile hitting enemy
+        if (headGridX === enemy.x && headGridY === enemy.y) {
+            enemies.splice(eIdx, 1);
+            createExplosion(enemy.x, enemy.y, '#ff3333', 12);
+            handleDamage();
+        }
+    });
+
+    // 2. Boss Arena Combat Interactions
+    bosses.forEach((boss, bIdx) => {
+        if (headGridX === boss.x && headGridY === boss.y) {
+            handleDamage();
+        }
+
+        // Projectiles tracking hitboxes against massive boss target
         projectiles.forEach((proj, pIdx) => {
-            if (Math.floor(proj.x) === enemy.x && Math.floor(proj.y) === enemy.y) {
+            let pX = Math.floor(proj.x);
+            let pY = Math.floor(proj.y);
+            if (pX === boss.x && pY === boss.y) {
+                projectiles.splice(pIdx, 1);
+                boss.hp--;
+                boss.flashFrames = 4; // Visual color flash indication
+                score += 15;
+                createExplosion(boss.x, boss.y, '#ff0055', 8);
+
+                if (boss.hp <= 0) {
+                    createExplosion(boss.x, boss.y, '#ffea00', 35);
+                    bosses.splice(bIdx, 1);
+                    score += 200;
+                    xp += 3; // Massive experience boost
+                    if (xp >= xpNeeded) triggerLevelUp();
+                }
+            }
+        });
+    });
+
+    // Projectiles clearing small enemies
+    projectiles.forEach((proj, pIdx) => {
+        let pX = Math.floor(proj.x);
+        let pY = Math.floor(proj.y);
+        enemies.forEach((enemy, eIdx) => {
+            if (pX === enemy.x && pY === enemy.y) {
+                createExplosion(enemy.x, enemy.y, '#a124db', 10);
                 enemies.splice(eIdx, 1);
                 projectiles.splice(pIdx, 1);
                 score += 5;
             }
         });
-
-        // Snake hitting enemy
-        if (head.x === enemy.x && head.y === enemy.y) {
-            enemies.splice(eIdx, 1);
-            if (shieldCount > 0) {
-                shieldCount--;
-            } else {
-                hp--;
-                if (hp <= 0) gameOver();
-            }
-        }
     });
-
-    // Random Roguelike Passive Trigger: Auto-Shoot Fireballs
-    if (attackSpeed > 0 && Math.random() < attackSpeed && enemies.length > 0) {
-        fireProjectiles();
-    }
-
-    updateHUD();
-    draw();
 }
 
-function bounceBack() {
-    nextDirection = { x: -direction.x, y: -direction.y };
+function handleDamage() {
+    if (shieldCount > 0) {
+        shieldCount--;
+    } else {
+        hp--;
+        if (hp <= 0) gameOver();
+    }
+    updateHUD();
 }
 
 function fireProjectiles() {
-    const target = enemies[0];
-    const head = snake[0];
-    const angle = Math.atan2(target.y - head.y, target.x - head.x);
+    let activeTarget = null;
+    if (bosses.length > 0) activeTarget = bosses[0];
+    else if (enemies.length > 0) activeTarget = enemies[0];
+
+    if (!activeTarget) return;
+    
+    let head = snake[0];
+    let angle = Math.atan2(activeTarget.y - head.targetY, activeTarget.x - head.targetX);
     projectiles.push({
         x: head.x, y: head.y,
-        vx: Math.cos(angle) * 0.5, vy: Math.sin(angle) * 0.5
+        vx: Math.cos(angle) * 0.4, vy: Math.sin(angle) * 0.4
     });
 }
 
-function triggerSpikes(pos) {
+function triggerSpikes(gx, gy) {
+    createExplosion(gx, gy, '#00ffcc', 20);
     enemies = enemies.filter(enemy => {
-        const dist = Math.abs(enemy.x - pos.x) + Math.abs(enemy.y - pos.y);
-        return dist > 2; // Kills any enemy near the eaten food
-    });
-}
-
-function spawnEnemy() {
-    if (Math.random() > 0.4) {
-        let pos = getRandomGridPosition();
-        // Prevent spawning directly on the snake head
-        if (pos.x !== snake[0].x && pos.y !== snake[0].y) {
-            enemies.push(pos);
+        let dist = Math.abs(enemy.x - gx) + Math.abs(enemy.y - gy);
+        if (dist <= 2) {
+            score += 5;
+            createExplosion(enemy.x, enemy.y, '#a124db', 8);
+            return false;
         }
-    }
-}
-
-function getRandomGridPosition() {
-    return {
-        x: Math.floor(Math.random() * gridCount),
-        y: Math.floor(Math.random() * gridCount)
-    };
+        return true;
+    });
 }
 
 function triggerLevelUp() {
     isPaused = true;
     level++;
     xp = 0;
-    xpNeeded = Math.floor(xpNeeded * 1.5);
+    xpNeeded = Math.floor(xpNeeded * 1.35);
     
+    // Check for Boss encounter progression triggers
+    if (level % 5 === 0) {
+        spawnBoss();
+    }
+
     const container = document.getElementById('upgrade-options');
     container.innerHTML = '';
     
-    // Choose 3 random unique cards to select from
     const shuffled = [...upgradesPool].sort(() => 0.5 - Math.random()).slice(0, 3);
     
     shuffled.forEach(upgrade => {
         const card = document.createElement('div');
         card.className = 'upgrade-card';
-        card.innerHTML = `<div class="upgrade-title">${upgrade.title}</div><div>${upgrade.desc}</div>`;
+        card.innerHTML = `<div class="upgrade-title">${upgrade.title}</div><div style="font-size:13px; margin-top:4px; opacity:0.9;">${upgrade.desc}</div>`;
         card.onclick = () => applyUpgrade(upgrade.id);
         container.appendChild(card);
     });
@@ -198,9 +372,10 @@ function triggerLevelUp() {
 
 function applyUpgrade(id) {
     if (id === 'hp') hp = Math.min(hp + 1, 5);
-    if (id === 'fireball') attackSpeed += 0.15;
+    if (id === 'fireball') attackSpeed += 1.5; 
     if (id === 'shield') shieldCount++;
     if (id === 'spikes') hasSpikes = true;
+    if (id === 'more_food') { maxFoodCount++; refillFood(); }
     
     document.getElementById('upgrade-screen').classList.add('hidden');
     isPaused = false;
@@ -209,7 +384,10 @@ function applyUpgrade(id) {
 function updateHUD() {
     document.getElementById('score-val').textContent = score;
     document.getElementById('level-val').textContent = level;
-    document.getElementById('hp-val').textContent = "❤️".repeat(hp) + (shieldCount > 0 ? "🛡️" : "");
+    document.getElementById('hp-val').innerHTML = 
+        `<span style="color: #ff3366">${"❤️".repeat(hp)}</span>` + 
+        (shieldCount > 0 ? ` <span style="color: #00ffcc">${"🛡️".repeat(shieldCount)}</span>` : "");
+        
     const xpPercent = (xp / xpNeeded) * 100;
     document.getElementById('xp-bar').style.width = `${xpPercent}%`;
 }
@@ -217,94 +395,13 @@ function updateHUD() {
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // Draw Food
-    ctx.fillStyle = '#ff007f';
-    ctx.shadowBlur = 10; ctx.shadowColor = '#ff007f';
-    ctx.fillRect(food.x * tileSize + 2, food.y * tileSize + 2, tileSize - 4, tileSize - 4);
-    
-    // Draw Enemies
-    ctx.fillStyle = '#a124db';
-    ctx.shadowColor = '#a124db';
-    enemies.forEach(enemy => {
-        ctx.fillRect(enemy.x * tileSize + 4, enemy.y * tileSize + 4, tileSize - 8, tileSize - 8);
-    });
-
-    // Draw Fireball Projectiles
-    ctx.fillStyle = '#00ffcc';
-    ctx.shadowColor = '#00ffcc';
-    projectiles.forEach(proj => {
-        ctx.beginPath();
-        ctx.arc(proj.x * tileSize + tileSize/2, proj.y * tileSize + tileSize/2, tileSize/4, 0, Math.PI*2);
-        ctx.fill();
-    });
-    
-    // Draw Snake
-    ctx.shadowBlur = 4;
-    snake.forEach((part, index) => {
-        ctx.fillStyle = index === 0 ? '#00ffcc' : '#00b3b3';
-        ctx.shadowColor = '#00ffcc';
-        ctx.fillRect(part.x * tileSize + 1, part.y * tileSize + 1, tileSize - 2, tileSize - 2);
-    });
-    ctx.shadowBlur = 0; // Reset canvas glow
-}
-
-function gameOver() {
-    clearInterval(gameInterval);
-    document.getElementById('final-lvl').textContent = level;
-    document.getElementById('game-over-screen').classList.remove('hidden');
-}
-
-// COMPUTER CONTROLS (Supports Arrow Keys and WASD)
-window.addEventListener('keydown', e => {
-    const key = e.key.toLowerCase(); // Converts to lowercase so CapsLock doesn't break it
-    
-    switch (key) {
-        case 'arrowup':
-        case 'w': 
-            if (direction.y === 0) nextDirection = { x: 0, y: -1 }; 
-            break;
-        case 'arrowdown':
-        case 's': 
-            if (direction.y === 0) nextDirection = { x: 0, y: 1 }; 
-            break;
-        case 'arrowleft':
-        case 'a': 
-            if (direction.x === 0) nextDirection = { x: -1, y: 0 }; 
-            break;
-        case 'arrowright':
-        case 'd': 
-            if (direction.x === 0) nextDirection = { x: 1, y: 0 }; 
-            break;
+    // Technical Background Grid
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.02)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < gridCount; i++) {
+        ctx.beginPath(); ctx.moveTo(i * tileSize, 0); ctx.lineTo(i * tileSize, canvas.height); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, i * tileSize); ctx.lineTo(canvas.width, i * tileSize); ctx.stroke();
     }
-});
-
-// MOBILE CONTROLS (Touch Swipe Controls)
-let touchStartX = 0;
-let touchStartY = 0;
-
-window.addEventListener('touchstart', e => {
-    touchStartX = e.changedTouches[0].screenX;
-    touchStartY = e.changedTouches[0].screenY;
-}, {passive: true});
-
-window.addEventListener('touchend', e => {
-    let diffX = e.changedTouches[0].screenX - touchStartX;
-    let diffY = e.changedTouches[0].screenY - touchStartY;
     
-    if (Math.abs(diffX) > Math.abs(diffY)) {
-        if (Math.abs(diffX) > 30) {
-            if (diffX > 0 && direction.x === 0) nextDirection = { x: 1, y: 0 };
-            else if (diffX < 0 && direction.x === 0) nextDirection = { x: -1, y: 0 };
-        }
-    } else {
-        if (Math.abs(diffY) > 30) {
-            if (diffY > 0 && direction.y === 0) nextDirection = { x: 0, y: 1 };
-            else if (diffY < 0 && direction.y === 0) nextDirection = { x: 0, y: -1 };
-        }
-    }
-}, {passive: true});
-
-document.getElementById('restart-btn').addEventListener('click', initGame);
-window.addEventListener('resize', () => { resizeCanvas(); draw(); });
-
-initGame();
+    // Draw Active Foods
+    ctx.fillStyle = '#ff0
