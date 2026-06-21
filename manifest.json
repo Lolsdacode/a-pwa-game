@@ -1,0 +1,17 @@
+{
+  "name": "Snake Roguelike Mobile",
+  "short_name": "SnakeRogue",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#0f0f1a",
+  "theme-color": "#1a1a2e",
+  "description": "An action roguelike snake arcade game.",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "https://flaticon.com",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
