@@ -21,28 +21,25 @@ let score, level, xp, xpNeeded, hp;
 let gameInterval, isPaused;
 let progressTimer = 0; 
 
-// Upgrades & Balancing Mechanics
+// Upgrades
 let attackSpeed = 0; 
 let shieldCount = 0;
 let hasSpikes = false;
 let maxFoodCount = 1; 
 let lastShotTime = 0;
-let snakeSpeedModifier = 1.0; // 1.0 is normal, higher is faster, lower is slower
-let godMode = false; // Developer cheat flag
 
 const upgradesPool = [
     { id: 'hp', title: '❤️ Bio-Repair', desc: 'Heals 1 lost heart (Max 5)' },
     { id: 'fireball', title: '🔥 Plasma Blaster', desc: 'Auto-fires projectiles rapidly at close targets' },
     { id: 'shield', title: '🛡️ Kinetic Shield', desc: 'Absorbs one collision with walls or targets' },
     { id: 'spikes', title: '⚡ Nova Spikes', desc: 'Eaten food triggers an explosion killing near enemies' },
-    { id: 'more_food', title: '🍎 Scout Radar', desc: 'Permanently increases the active food count on the field' },
-    { id: 'speed_up', title: '🏎️ Overclock Engine', desc: 'Move 25% faster! Great for aggressive blitzing.' },
-    { id: 'speed_down', title: '🐢 Chrono Anchor', desc: 'Move 20% slower but gain 1 free shield block.' }
+    { id: 'more_food', title: '🍎 Scout Radar', desc: 'Permanently increases the active food count on the field' }
 ];
 
 function initGame() {
     resizeCanvas();
     
+    // Smooth positions track float values for sub-grid rendering
     snake = [
         { x: 10, y: 10, targetX: 10, targetY: 10 },
         { x: 10, y: 11, targetX: 10, targetY: 11 },
@@ -61,7 +58,6 @@ function initGame() {
     
     score = 0; level = 1; xp = 0; xpNeeded = 3; hp = 3;
     attackSpeed = 0; shieldCount = 0; hasSpikes = false; maxFoodCount = 1;
-    snakeSpeedModifier = 1.0; godMode = false;
     isPaused = false;
     progressTimer = 0;
     
@@ -72,6 +68,7 @@ function initGame() {
     document.getElementById('upgrade-screen').classList.add('hidden');
     
     if(gameInterval) clearInterval(gameInterval);
+    // 60fps loop for high-precision movement animation
     gameInterval = setInterval(updateTick, 1000 / 60); 
 }
 
@@ -101,7 +98,7 @@ function getSafeGridPosition() {
     while (attempts < 150) {
         let pos = {
             x: Math.floor(Math.random() * gridCount),
-            y: Math.floor(Math.random() * Math.max(1, gridCount))
+            y: Math.floor(Math.random() * gridCount)
         };
         let onSnake = snake.some(p => Math.round(p.targetX) === pos.x && Math.round(p.targetY) === pos.y);
         let onFood = foods.some(f => f.x === pos.x && f.y === pos.y);
@@ -142,16 +139,16 @@ function updateTick() {
 
     let head = snake[0];
     let distanceToTarget = Math.hypot(head.targetX - head.x, head.targetY - head.y);
-    
-    // Smooth translation influenced dynamically by your speed modifier builds
-    let moveStepSpeed = 0.35 * snakeSpeedModifier; 
+    let moveStepSpeed = 0.22; 
 
     if (distanceToTarget > 0.01) {
+        // Linearly slide each body segment smoothly toward its grid target location
         snake.forEach(part => {
             part.x += (part.targetX - part.x) * moveStepSpeed;
             part.y += (part.targetY - part.y) * moveStepSpeed;
         });
     } else {
+        // Snaps perfectly to the grid cells when targets are reached
         snake.forEach(part => {
             part.x = part.targetX;
             part.y = part.targetY;
@@ -159,7 +156,6 @@ function updateTick() {
         advanceGridStep();
     }
 
-    // High frequency projectile step calculations
     projectiles.forEach((proj, pIdx) => {
         proj.x += proj.vx;
         proj.y += proj.vy;
@@ -175,9 +171,6 @@ function updateTick() {
         if (p.alpha <= 0) particles.splice(index, 1);
     });
 
-    // Check combat hit registrations every single frame frame instead of tile turns
-    checkRealtimeCombatCollisions();
-
     draw();
 }
 
@@ -189,6 +182,7 @@ function advanceGridStep() {
     let nextX = currentHead.targetX + direction.x;
     let nextY = currentHead.targetY + direction.y;
 
+    // Boundary Wall Crashes
     if (nextX < 0 || nextX >= gridCount || nextY < 0 || nextY >= gridCount) {
         if (shieldCount > 0) {
             shieldCount--;
@@ -202,6 +196,7 @@ function advanceGridStep() {
         }
     }
 
+    // Body Self Collisions
     for (let i = 1; i < snake.length; i++) {
         if (snake[i].targetX === nextX && snake[i].targetY === nextY) {
             gameOver();
@@ -212,6 +207,7 @@ function advanceGridStep() {
     let newHeadTarget = { x: currentHead.targetX, y: currentHead.targetY, targetX: nextX, targetY: nextY };
     snake.unshift(newHeadTarget);
 
+    // Collision Check: Eating Food 
     let eatenFoodIdx = foods.findIndex(f => f.x === nextX && f.y === nextY);
     if (eatenFoodIdx !== -1) {
         foods.splice(eatenFoodIdx, 1);
@@ -230,6 +226,9 @@ function advanceGridStep() {
         snake.pop();
     }
 
+    checkCombatCollisions(nextX, nextY);
+
+    // Auto weapon fire logic
     if (attackSpeed > 0) {
         let now = Date.now();
         if (now - lastShotTime > (1000 / attackSpeed)) {
@@ -239,37 +238,26 @@ function advanceGridStep() {
     }
 }
 
-// FIX: Radially calculated hitboxes to make sure projectiles kill enemies cleanly!
-function checkRealtimeCombatCollisions() {
-    let head = snake[0];
-    if (!head) return;
-
-    // 1. Enemies vs Snake Head
+function checkCombatCollisions(headGridX, headGridY) {
+    // 1. Regular Enemies vs Snake Head
     enemies.forEach((enemy, eIdx) => {
-        if (Math.round(head.x) === enemy.x && Math.round(head.y) === enemy.y) {
+        if (headGridX === enemy.x && headGridY === enemy.y) {
             enemies.splice(eIdx, 1);
             createExplosion(enemy.x, enemy.y, '#ff3333', 12);
             handleDamage();
         }
     });
 
-    // 2. Projectiles vs Enemies / Bosses
-    projectiles.forEach((proj, pIdx) => {
-        // Check small enemies
-        enemies.forEach((enemy, eIdx) => {
-            let dist = Math.hypot(proj.x - enemy.x, proj.y - enemy.y);
-            if (dist < 0.7) { // Hitbox detection radius threshold
-                createExplosion(enemy.x, enemy.y, '#a124db', 10);
-                enemies.splice(eIdx, 1);
-                projectiles.splice(pIdx, 1);
-                score += 5;
-            }
-        });
+    // 2. Boss Arena Combat Interactions
+    bosses.forEach((boss, bIdx) => {
+        if (headGridX === boss.x && headGridY === boss.y) {
+            handleDamage();
+        }
 
-        // Check boss tracking bounds
-        bosses.forEach((boss, bIdx) => {
-            let dist = Math.hypot(proj.x - boss.x, proj.y - boss.y);
-            if (dist < 1.0) { 
+        projectiles.forEach((proj, pIdx) => {
+            let pX = Math.floor(proj.x);
+            let pY = Math.floor(proj.y);
+            if (pX === boss.x && pY === boss.y) {
                 projectiles.splice(pIdx, 1);
                 boss.hp--;
                 boss.flashFrames = 4; 
@@ -287,16 +275,22 @@ function checkRealtimeCombatCollisions() {
         });
     });
 
-    // 3. Boss contact damage vs Snake Head
-    bosses.forEach(boss => {
-        if (Math.round(head.x) === boss.x && Math.round(head.y) === boss.y) {
-            handleDamage();
-        }
+    // Projectiles clearing small enemies
+    projectiles.forEach((proj, pIdx) => {
+        let pX = Math.floor(proj.x);
+        let pY = Math.floor(proj.y);
+        enemies.forEach((enemy, eIdx) => {
+            if (pX === enemy.x && pY === enemy.y) {
+                createExplosion(enemy.x, enemy.y, '#a124db', 10);
+                enemies.splice(eIdx, 1);
+                projectiles.splice(pIdx, 1);
+                score += 5;
+            }
+        });
     });
 }
 
 function handleDamage() {
-    if (godMode) return; // Cheats bypassed layout damage checking
     if (shieldCount > 0) {
         shieldCount--;
     } else {
@@ -314,10 +308,10 @@ function fireProjectiles() {
     if (!activeTarget) return;
     
     let head = snake[0];
-    let angle = Math.atan2(activeTarget.y - head.y, activeTarget.x - head.x);
+    let angle = Math.atan2(activeTarget.y - head.targetY, activeTarget.x - head.targetX);
     projectiles.push({
         x: head.x, y: head.y,
-        vx: Math.cos(angle) * 0.35, vy: Math.sin(angle) * 0.35
+        vx: Math.cos(angle) * 0.4, vy: Math.sin(angle) * 0.4
     });
 }
 
@@ -366,8 +360,6 @@ function applyUpgrade(id) {
     if (id === 'shield') shieldCount++;
     if (id === 'spikes') hasSpikes = true;
     if (id === 'more_food') { maxFoodCount++; refillFood(); }
-    if (id === 'speed_up') snakeSpeedModifier += 0.25;
-    if (id === 'speed_down') { snakeSpeedModifier = Math.max(0.5, snakeSpeedModifier - 0.2); shieldCount++; }
     
     document.getElementById('upgrade-screen').classList.add('hidden');
     isPaused = false;
@@ -378,22 +370,21 @@ function updateHUD() {
     document.getElementById('level-val').textContent = level;
     document.getElementById('hp-val').innerHTML = 
         `<span style="color: #ff3366">${"❤️".repeat(hp)}</span>` + 
-        (shieldCount > 0 ? ` <span style="color: #00ffcc">${"🛡️".repeat(shieldCount)}</span>` : "") +
-        (godMode ? ` <span style="color: #ffea00; font-size:12px;">[GOD]</span>` : "");
+        (shieldCount > 0 ? ` <span style="color: #00ffcc">${"🛡️".repeat(shieldCount)}</span>` : "");
         
     const xpPercent = (xp / xpNeeded) * 100;
     document.getElementById('xp-bar').style.width = `${xpPercent}%`;
 }
 
 function gameOver() {
-    if (godMode) return;
-    isPaused = true;
+    if(gameInterval) clearInterval(gameInterval);
     document.getElementById('game-over-screen').classList.remove('hidden');
 }
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
+    // 1. Technical Background Grid
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
     ctx.lineWidth = 1;
     for (let i = 0; i < gridCount; i++) {
@@ -401,10 +392,11 @@ function draw() {
         ctx.beginPath(); ctx.moveTo(0, i * tileSize); ctx.lineTo(canvas.width, i * tileSize); ctx.stroke();
     }
     
+    // 2. Draw Active Foods (Glowing Biotech Orbs)
     foods.forEach(food => {
         let fx = food.x * tileSize + tileSize / 2;
         let fy = food.y * tileSize + tileSize / 2;
-        let radius = (tileSize / 2.5) + Math.sin(Date.now() / 150) * 1.5;
+        let radius = (tileSize / 2.5) + Math.sin(Date.now() / 150) * 1.5; 
         
         ctx.save();
         ctx.shadowBlur = 15;
@@ -422,6 +414,7 @@ function draw() {
         ctx.restore();
     });
 
+    // 3. Draw Regular Enemies (Floating Cyber-Drones)
     enemies.forEach(enemy => {
         let hoverY = Math.sin((Date.now() / 200) + (enemy.x * enemy.y)) * 4;
         let ex = enemy.x * tileSize + tileSize / 2;
@@ -448,6 +441,7 @@ function draw() {
         ctx.restore();
     });
 
+    // 4. Draw Boss Entity (Massive Core Leviathan)
     bosses.forEach(boss => {
         let bx = boss.x * tileSize + tileSize / 2;
         let by = boss.y * tileSize + tileSize / 2;
@@ -483,6 +477,7 @@ function draw() {
         ctx.restore();
     });
 
+    // 5. Draw Smooth-Flowing Snake Body
     for (let i = snake.length - 1; i >= 0; i--) {
         let part = snake[i];
         let rx = part.x * tileSize + tileSize / 2;
@@ -532,6 +527,7 @@ function draw() {
         ctx.restore();
     }
 
+    // 6. Draw Plasma Projectiles
     projectiles.forEach(proj => {
         let px = proj.x * tileSize + tileSize / 2;
         let py = proj.y * tileSize + tileSize / 2;
@@ -546,6 +542,7 @@ function draw() {
         ctx.restore();
     });
 
+    // 7. Draw Particles
     particles.forEach(p => {
         ctx.save();
         ctx.globalAlpha = p.alpha;
@@ -557,72 +554,14 @@ function draw() {
     });
 }
 
-// 1. Keyboard Controls Input Listener
 window.addEventListener('keydown', e => {
     switch (e.key) {
         case 'ArrowUp':    case 'w': if (lastValidDirection.y !== 1)  nextDirection = { x: 0, y: -1 }; break;
         case 'ArrowDown':  case 's': if (lastValidDirection.y !== -1) nextDirection = { x: 0, y: 1 };  break;
         case 'ArrowLeft':  case 'a': if (lastValidDirection.x !== 1)  nextDirection = { x: -1, y: 0 }; break;
         case 'ArrowRight': case 'd': if (lastValidDirection.x !== -1) nextDirection = { x: 1, y: 0 };  break;
-        
-        // SECRET DEVELOPER CONSOLE COMMAND HOTKEY: Press `~` Tilde key!
-        case '`': 
-            openDevConsole(); 
-            break;
     }
 });
-
-// Secret Developer Engine Cheat Actions Panel Trigger Function
-function openDevConsole() {
-    let command = prompt("👨‍💻 DEV CHEAT CONSOLE:\nEnter command:\n1: god (Toggle Invincibility)\n2: level (Instant Level Up Card Menu)\n3: boss (Force Spawn Boss Fight)\n4: clear (Kill all screen enemies)");
-    if (command === '1' || command === 'god') {
-        godMode = !godMode;
-        alert("God mode is now: " + (godMode ? "ENABLED" : "DISABLED"));
-    } else if (command === '2' || command === 'level') {
-        triggerLevelUp();
-    } else if (command === '3' || command === 'boss') {
-        spawnBoss();
-    } else if (command === '4' || command === 'clear') {
-        enemies = [];
-        createExplosion(gridCount/2, gridCount/2, '#00ffff', 40);
-    }
-    updateHUD();
-}
-
-// 2. Mobile Touch Swipe & Multi-finger Tap Input Controller
-let touchStartX = 0;
-let touchStartY = 0;
-
-window.addEventListener('touchstart', e => {
-    // SECRET DEV TRIGGER FOR IPHONE: Tap your screen with exactly 3 fingers at once to unlock cheats!
-    if (e.touches.length === 3) {
-        openDevConsole();
-        return;
-    }
-    touchStartX = e.touches[0].clientX;
-    touchStartY = e.touches[0].clientY;
-}, { passive: true });
-
-window.addEventListener('touchend', e => {
-    if (!touchStartX || !touchStartY) return;
-
-    let diffX = e.changedTouches[0].clientX - touchStartX;
-    let diffY = e.changedTouches[0].clientY - touchStartY;
-    let absDiffX = Math.abs(diffX);
-    let absDiffY = Math.abs(diffY);
-
-    if (Math.max(absDiffX, absDiffY) > 25) {
-        if (absDiffX > absDiffY) {
-            if (diffX > 0 && lastValidDirection.x !== -1) nextDirection = { x: 1, y: 0 };
-            else if (diffX < 0 && lastValidDirection.x !== 1) nextDirection = { x: -1, y: 0 };
-        } else {
-            if (diffY > 0 && lastValidDirection.y !== -1) nextDirection = { x: 0, y: 1 };
-            else if (diffY < 0 && lastValidDirection.y !== 1) nextDirection = { x: 0, y: -1 };
-        }
-    }
-    touchStartX = 0;
-    touchStartY = 0;
-}, { passive: true });
 
 window.addEventListener('resize', resizeCanvas);
 
