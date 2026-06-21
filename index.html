@@ -14,17 +14,82 @@
 </head>
 <body>
     <div id="game-container">
-        <div id="hud">
+
+        <!-- Main Menu -->
+        <div id="main-menu-screen">
+            <h1 id="game-title">SNAKE<span class="title-accent">ROGUE</span></h1>
+            <div class="menu-buttons">
+                <button id="start-btn" class="menu-btn primary">Start</button>
+                <button id="options-btn" class="menu-btn">Options</button>
+            </div>
+        </div>
+
+        <!-- Options Menu -->
+        <div id="options-screen" class="hidden">
+            <h2>Options</h2>
+            <div class="option-row">
+                <span id="theme-toggle-label" class="option-label">Dark Mode</span>
+                <button id="theme-toggle-btn" class="toggle-btn" aria-label="Toggle dark/light mode"></button>
+            </div>
+            <div class="option-row">
+                <span class="option-label">Sound</span>
+                <button id="sound-toggle-btn" class="toggle-btn" aria-label="Toggle sound"></button>
+            </div>
+            <button id="options-back-btn" class="menu-btn">Back</button>
+            <p id="dev-unlock-hint" class="hidden">🛠 Dev console unlocked</p>
+            <button id="dev-open-btn" class="menu-btn hidden">Open Dev Console</button>
+        </div>
+
+        <!-- Dev Console -->
+        <div id="dev-console" class="hidden">
+            <div id="dev-console-header">
+                <h2>Dev Console</h2>
+                <button id="dev-close-btn" class="toggle-btn">✕</button>
+            </div>
+            <div id="dev-console-body">
+                <div class="dev-row">
+                    <label>Speed mult.</label>
+                    <input type="range" id="dev-speed" min="0.1" max="1.5" step="0.05" value="1">
+                    <span id="dev-speed-val">1.00x</span>
+                </div>
+                <div class="dev-row">
+                    <label>Score</label>
+                    <input type="number" id="dev-score" value="0">
+                    <button class="dev-apply-btn" data-target="score">Set</button>
+                </div>
+                <div class="dev-row">
+                    <label>Level</label>
+                    <input type="number" id="dev-level" value="1" min="1">
+                    <button class="dev-apply-btn" data-target="level">Skip To</button>
+                </div>
+                <div class="dev-row">
+                    <label>HP</label>
+                    <input type="number" id="dev-hp" value="3" min="0" max="99">
+                    <button class="dev-apply-btn" data-target="hp">Set</button>
+                </div>
+                <div class="dev-row">
+                    <label>God Mode</label>
+                    <button class="toggle-btn" id="dev-godmode-btn">OFF</button>
+                </div>
+                <div class="dev-row buttons-row">
+                    <button id="dev-spawn-enemy">+ Enemy</button>
+                    <button id="dev-spawn-boss">+ Boss</button>
+                    <button id="dev-give-all">Give All Perks</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="hud" class="hidden">
             <div>Score: <span id="score-val">0</span></div>
             <div>Level: <span id="level-val">1</span></div>
             <div id="xp-bar-container"><div id="xp-bar"></div></div>
             <div>HP: <span id="hp-val">3</span></div>
         </div>
 
-        <canvas id="gameCanvas"></canvas>
+        <canvas id="gameCanvas" class="hidden"></canvas>
 
         <!-- Touch D-pad for mobile play -->
-        <div id="touch-controls">
+        <div id="touch-controls" class="hidden">
             <button class="dpad-btn" id="btn-up" aria-label="Up">▲</button>
             <button class="dpad-btn" id="btn-left" aria-label="Left">◀</button>
             <button class="dpad-btn" id="btn-right" aria-label="Right">▶</button>
@@ -42,6 +107,7 @@
             <h2>GAME OVER</h2>
             <p>You reached Level <span id="final-lvl">1</span></p>
             <button id="restart-btn">Play Again</button>
+            <button id="menu-btn-gameover" class="menu-btn">Main Menu</button>
         </div>
     </div>
 

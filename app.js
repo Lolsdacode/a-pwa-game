@@ -27,16 +27,43 @@ let shieldCount = 0;
 let hasSpikes = false;
 let maxFoodCount = 1; 
 let lastShotTime = 0;
+let speedBonus = 0; // added on top of base move speed by the Speed Boost perk
+
+// Base glide speed (how fast the snake interpolates between grid cells).
+// This is multiplied up slightly per level so the game naturally
+// quickens as you progress, on top of anything the player picks.
+const BASE_MOVE_SPEED = 0.27;
+const PER_LEVEL_SPEED_GAIN = 0.012;
+const MAX_MOVE_SPEED = 0.6; // hard cap so it never becomes uncontrollable
+
+// Dev console state (only reachable via the hidden unlock in Options)
+let devSpeedMultiplier = 1;
+let godMode = false;
 
 const upgradesPool = [
     { id: 'hp', title: '❤️ Bio-Repair', desc: 'Heals 1 lost heart (Max 5)' },
     { id: 'fireball', title: '🔥 Plasma Blaster', desc: 'Auto-fires projectiles rapidly at close targets' },
     { id: 'shield', title: '🛡️ Kinetic Shield', desc: 'Absorbs one collision with walls or targets' },
     { id: 'spikes', title: '⚡ Nova Spikes', desc: 'Eaten food triggers an explosion killing near enemies' },
-    { id: 'more_food', title: '🍎 Scout Radar', desc: 'Permanently increases the active food count on the field' }
+    { id: 'more_food', title: '🍎 Scout Radar', desc: 'Permanently increases the active food count on the field' },
+    { id: 'speed', title: '💨 Adrenal Surge', desc: 'Permanently increases movement speed' }
 ];
 
+function getCurrentMoveSpeed() {
+    let speed = BASE_MOVE_SPEED + (level - 1) * PER_LEVEL_SPEED_GAIN + speedBonus;
+    speed = Math.min(speed, MAX_MOVE_SPEED);
+    return speed * devSpeedMultiplier;
+}
+
 function initGame() {
+    document.getElementById('main-menu-screen').classList.add('hidden');
+    document.getElementById('options-screen').classList.add('hidden');
+    document.getElementById('game-over-screen').classList.add('hidden');
+    document.getElementById('upgrade-screen').classList.add('hidden');
+    document.getElementById('hud').classList.remove('hidden');
+    canvas.classList.remove('hidden');
+    document.getElementById('touch-controls').classList.remove('hidden');
+
     resizeCanvas();
     
     // Smooth positions track float values for sub-grid rendering
@@ -58,14 +85,12 @@ function initGame() {
     
     score = 0; level = 1; xp = 0; xpNeeded = 3; hp = 3;
     attackSpeed = 0; shieldCount = 0; hasSpikes = false; maxFoodCount = 1;
+    speedBonus = 0;
     isPaused = false;
     progressTimer = 0;
     
     refillFood();
     updateHUD();
-    
-    document.getElementById('game-over-screen').classList.add('hidden');
-    document.getElementById('upgrade-screen').classList.add('hidden');
     
     if(gameInterval) clearInterval(gameInterval);
     // 60fps loop for high-precision movement animation
@@ -139,7 +164,7 @@ function updateTick() {
 
     let head = snake[0];
     let distanceToTarget = Math.hypot(head.targetX - head.x, head.targetY - head.y);
-    let moveStepSpeed = 0.22; 
+    let moveStepSpeed = getCurrentMoveSpeed();
 
     if (distanceToTarget > 0.01) {
         // Linearly slide each body segment smoothly toward its grid target location
@@ -184,7 +209,11 @@ function advanceGridStep() {
 
     // Boundary Wall Crashes
     if (nextX < 0 || nextX >= gridCount || nextY < 0 || nextY >= gridCount) {
-        if (shieldCount > 0) {
+        if (godMode) {
+            // Wrap around instead of dying when invincible
+            nextX = (nextX + gridCount) % gridCount;
+            nextY = (nextY + gridCount) % gridCount;
+        } else if (shieldCount > 0) {
             shieldCount--;
             createExplosion(currentHead.targetX, currentHead.targetY, '#00ffcc', 12);
             nextDirection = { x: -direction.x, y: -direction.y };
@@ -199,6 +228,7 @@ function advanceGridStep() {
     // Body Self Collisions
     for (let i = 1; i < snake.length; i++) {
         if (snake[i].targetX === nextX && snake[i].targetY === nextY) {
+            if (godMode) break;
             gameOver();
             return;
         }
@@ -291,6 +321,7 @@ function checkCombatCollisions(headGridX, headGridY) {
 }
 
 function handleDamage() {
+    if (godMode) return;
     if (shieldCount > 0) {
         shieldCount--;
     } else {
@@ -360,6 +391,7 @@ function applyUpgrade(id) {
     if (id === 'shield') shieldCount++;
     if (id === 'spikes') hasSpikes = true;
     if (id === 'more_food') { maxFoodCount++; refillFood(); }
+    if (id === 'speed') speedBonus += 0.05;
     
     document.getElementById('upgrade-screen').classList.add('hidden');
     isPaused = false;
@@ -380,6 +412,16 @@ function gameOver() {
     if(gameInterval) clearInterval(gameInterval);
     document.getElementById('final-lvl').textContent = level;
     document.getElementById('game-over-screen').classList.remove('hidden');
+}
+
+function returnToMainMenu() {
+    if (gameInterval) clearInterval(gameInterval);
+    document.getElementById('game-over-screen').classList.add('hidden');
+    document.getElementById('upgrade-screen').classList.add('hidden');
+    document.getElementById('hud').classList.add('hidden');
+    canvas.classList.add('hidden');
+    document.getElementById('touch-controls').classList.add('hidden');
+    document.getElementById('main-menu-screen').classList.remove('hidden');
 }
 
 function draw() {
@@ -617,13 +659,212 @@ bindDpadButton('btn-down', 0, 1);
 bindDpadButton('btn-left', -1, 0);
 bindDpadButton('btn-right', 1, 0);
 
-// --- Restart button ---
+// --- Restart / Menu buttons ---
 document.getElementById('restart-btn').addEventListener('click', () => {
+    initGame();
+});
+
+document.getElementById('menu-btn-gameover').addEventListener('click', () => {
+    returnToMainMenu();
+});
+
+document.getElementById('start-btn').addEventListener('click', () => {
     initGame();
 });
 
 window.addEventListener('resize', resizeCanvas);
 
+// =====================================================================
+// Main Menu / Options / Theme
+// =====================================================================
+
+const mainMenuScreen = document.getElementById('main-menu-screen');
+const optionsScreen = document.getElementById('options-screen');
+const themeToggleBtn = document.getElementById('theme-toggle-btn');
+const themeToggleLabel = document.getElementById('theme-toggle-label');
+const soundToggleBtn = document.getElementById('sound-toggle-btn');
+
+let soundOn = loadSetting('soundOn', true);
+let lightMode = loadSetting('lightMode', false);
+
+function loadSetting(key, fallback) {
+    try {
+        const raw = localStorage.getItem('snakeRogue.' + key);
+        return raw === null ? fallback : JSON.parse(raw);
+    } catch (e) {
+        return fallback;
+    }
+}
+
+function saveSetting(key, value) {
+    try {
+        localStorage.setItem('snakeRogue.' + key, JSON.stringify(value));
+    } catch (e) {
+        // localStorage unavailable (e.g. private mode) - settings just won't persist
+    }
+}
+
+function applyTheme() {
+    document.body.classList.toggle('light-mode', lightMode);
+    themeToggleBtn.classList.toggle('is-on', lightMode);
+    themeToggleBtn.textContent = lightMode ? 'Light' : 'Dark';
+    themeToggleLabel.textContent = lightMode ? 'Light Mode' : 'Dark Mode';
+}
+
+function applySoundUI() {
+    soundToggleBtn.classList.toggle('is-on', soundOn);
+    soundToggleBtn.textContent = soundOn ? 'On' : 'Off';
+}
+
+applyTheme();
+applySoundUI();
+
+document.getElementById('options-btn').addEventListener('click', () => {
+    mainMenuScreen.classList.add('hidden');
+    optionsScreen.classList.remove('hidden');
+});
+
+document.getElementById('options-back-btn').addEventListener('click', () => {
+    optionsScreen.classList.add('hidden');
+    mainMenuScreen.classList.remove('hidden');
+});
+
+themeToggleBtn.addEventListener('click', () => {
+    lightMode = !lightMode;
+    saveSetting('lightMode', lightMode);
+    applyTheme();
+});
+
+soundToggleBtn.addEventListener('click', () => {
+    soundOn = !soundOn;
+    saveSetting('soundOn', soundOn);
+    applySoundUI();
+});
+
+// =====================================================================
+// Hidden Dev Console unlock: long-press the Dark/Light Mode toggle
+// =====================================================================
+
+const devConsole = document.getElementById('dev-console');
+const devUnlockHint = document.getElementById('dev-unlock-hint');
+const LONG_PRESS_MS = 1200;
+let devUnlocked = loadSetting('devUnlocked', false);
+let longPressTimer = null;
+
+function unlockDevConsole() {
+    if (devUnlocked) return;
+    devUnlocked = true;
+    saveSetting('devUnlocked', true);
+    devUnlockHint.classList.remove('hidden');
+    document.getElementById('dev-open-btn').classList.remove('hidden');
+}
+
+function startLongPress() {
+    clearTimeout(longPressTimer);
+    longPressTimer = setTimeout(unlockDevConsole, LONG_PRESS_MS);
+}
+
+function cancelLongPress() {
+    clearTimeout(longPressTimer);
+}
+
+themeToggleLabel.addEventListener('mousedown', startLongPress);
+themeToggleLabel.addEventListener('touchstart', startLongPress, { passive: true });
+['mouseup', 'mouseleave', 'touchend', 'touchcancel'].forEach(evt => {
+    themeToggleLabel.addEventListener(evt, cancelLongPress);
+});
+
+if (devUnlocked) {
+    devUnlockHint.classList.remove('hidden');
+    document.getElementById('dev-open-btn').classList.remove('hidden');
+}
+
+document.getElementById('dev-open-btn').addEventListener('click', () => {
+    openDevConsole();
+});
+
+// =====================================================================
+// Dev Console: full sandbox controls
+// =====================================================================
+
+function openDevConsole() {
+    syncDevConsoleFields();
+    devConsole.classList.remove('hidden');
+}
+
+function syncDevConsoleFields() {
+    document.getElementById('dev-speed').value = devSpeedMultiplier;
+    document.getElementById('dev-speed-val').textContent = devSpeedMultiplier.toFixed(2) + 'x';
+    document.getElementById('dev-score').value = score || 0;
+    document.getElementById('dev-level').value = level || 1;
+    document.getElementById('dev-hp').value = hp || 0;
+    const godBtn = document.getElementById('dev-godmode-btn');
+    godBtn.classList.toggle('is-on', godMode);
+    godBtn.textContent = godMode ? 'ON' : 'OFF';
+
+    const noActiveRun = !gameInterval;
+    document.querySelectorAll('.dev-apply-btn, #dev-spawn-enemy, #dev-spawn-boss, #dev-give-all')
+        .forEach(btn => { btn.disabled = noActiveRun; btn.style.opacity = noActiveRun ? 0.4 : 1; });
+}
+
+document.getElementById('dev-close-btn').addEventListener('click', () => {
+    devConsole.classList.add('hidden');
+});
+
+document.getElementById('dev-speed').addEventListener('input', (e) => {
+    devSpeedMultiplier = parseFloat(e.target.value);
+    document.getElementById('dev-speed-val').textContent = devSpeedMultiplier.toFixed(2) + 'x';
+});
+
+document.getElementById('dev-godmode-btn').addEventListener('click', (e) => {
+    godMode = !godMode;
+    e.target.classList.toggle('is-on', godMode);
+    e.target.textContent = godMode ? 'ON' : 'OFF';
+});
+
+document.querySelectorAll('.dev-apply-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        if (!gameInterval) return; // no active run to edit
+        const target = btn.dataset.target;
+        if (target === 'score') {
+            score = parseInt(document.getElementById('dev-score').value, 10) || 0;
+        } else if (target === 'level') {
+            const targetLevel = Math.max(1, parseInt(document.getElementById('dev-level').value, 10) || 1);
+            level = targetLevel;
+            xp = 0;
+            xpNeeded = Math.floor(3 * Math.pow(1.35, targetLevel - 1));
+        } else if (target === 'hp') {
+            hp = Math.max(0, parseInt(document.getElementById('dev-hp').value, 10) || 0);
+            if (hp <= 0) gameOver();
+        }
+        updateHUD();
+    });
+});
+
+document.getElementById('dev-spawn-enemy').addEventListener('click', () => {
+    if (!gameInterval) return;
+    enemies.push(getSafeGridPosition());
+});
+
+document.getElementById('dev-spawn-boss').addEventListener('click', () => {
+    if (!gameInterval) return;
+    spawnBoss();
+});
+
+document.getElementById('dev-give-all').addEventListener('click', () => {
+    if (!gameInterval) return;
+    hp = 5;
+    shieldCount = Math.max(shieldCount, 3);
+    hasSpikes = true;
+    attackSpeed = Math.max(attackSpeed, 4.5);
+    maxFoodCount = Math.max(maxFoodCount, 4);
+    speedBonus = Math.max(speedBonus, 0.15);
+    refillFood();
+    updateHUD();
+});
+
 window.onload = () => {
-    initGame();
+    resizeCanvas();
+    // Game does not auto-start anymore; the main menu is shown first
+    // and initGame() runs only when the player presses Start.
 };
