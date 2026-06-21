@@ -10,7 +10,7 @@ let nextDirection = { x: 0, y: -1 };
 let lastValidDirection = { x: 0, y: -1 };
 
 // Entity Pools
-let foods = []; // Now supports multiple items
+let foods = []; 
 let enemies = [];
 let projectiles = [];
 let particles = [];
@@ -25,7 +25,7 @@ let progressTimer = 0;
 let attackSpeed = 0; 
 let shieldCount = 0;
 let hasSpikes = false;
-let maxFoodCount = 1; // Upgradable field
+let maxFoodCount = 1; 
 let lastShotTime = 0;
 
 const upgradesPool = [
@@ -39,7 +39,6 @@ const upgradesPool = [
 function initGame() {
     resizeCanvas();
     
-    // Smooth positions track float values for sub-grid rendering
     snake = [
         { x: 10, y: 10, targetX: 10, targetY: 10 },
         { x: 10, y: 11, targetX: 10, targetY: 11 },
@@ -61,15 +60,13 @@ function initGame() {
     isPaused = false;
     progressTimer = 0;
     
-    // Spawn initial setup
     refillFood();
-    
     updateHUD();
+    
     document.getElementById('game-over-screen').classList.add('hidden');
     document.getElementById('upgrade-screen').classList.add('hidden');
     
     if(gameInterval) clearInterval(gameInterval);
-    // Increased update rate (60fps loop) for high-precision movement animation
     gameInterval = setInterval(updateTick, 1000 / 60); 
 }
 
@@ -119,7 +116,6 @@ function refillFood() {
 }
 
 function spawnEnemy() {
-    // Only spawn regular layout mobs if there isn't an active boss fight
     if (bosses.length === 0 && Math.random() > 0.3) {
         enemies.push(getSafeGridPosition());
     }
@@ -136,35 +132,28 @@ function spawnBoss() {
     createExplosion(gridCount/2, gridCount/2, '#ff0055', 30);
 }
 
-// Global engine running at high frame rate
 function updateTick() {
     if (isPaused) return;
 
-    // Linear Interpolation loop smoothing physics updates
     let head = snake[0];
     let distanceToTarget = Math.hypot(head.targetX - head.x, head.targetY - head.y);
     
-    // Constant transition pacing variable
-    let moveStepSpeed = 0.22; 
+    // Snappy, fast slide speed adjustment (Optimized up from 0.22)
+    let moveStepSpeed = 0.35; 
 
     if (distanceToTarget > 0.01) {
-        // Linearly slide each body segment smoothly toward its grid target location
         snake.forEach(part => {
             part.x += (part.targetX - part.x) * moveStepSpeed;
             part.y += (part.targetY - part.y) * moveStepSpeed;
         });
     } else {
-        // Snaps perfectly to the grid cells when targets are reached
         snake.forEach(part => {
             part.x = part.targetX;
             part.y = part.targetY;
         });
-        
-        // Execute a step forward on grid mechanics
         advanceGridStep();
     }
 
-    // High frequency projectile updates
     projectiles.forEach((proj, pIdx) => {
         proj.x += proj.vx;
         proj.y += proj.vy;
@@ -173,7 +162,6 @@ function updateTick() {
         }
     });
 
-    // Update floating decorative particles
     particles.forEach((p, index) => {
         p.x += p.vx;
         p.y += p.vy;
@@ -184,16 +172,14 @@ function updateTick() {
     draw();
 }
 
-// Logic triggered precisely when a snake matches tile coords
 function advanceGridStep() {
     direction = nextDirection;
-    lastValidDirection = direction; // Capture actual heading angle
+    lastValidDirection = direction; 
 
     let currentHead = snake[0];
     let nextX = currentHead.targetX + direction.x;
     let nextY = currentHead.targetY + direction.y;
 
-    // Boundary Wall Crashes
     if (nextX < 0 || nextX >= gridCount || nextY < 0 || nextY >= gridCount) {
         if (shieldCount > 0) {
             shieldCount--;
@@ -207,7 +193,6 @@ function advanceGridStep() {
         }
     }
 
-    // Body Self Collisions
     for (let i = 1; i < snake.length; i++) {
         if (snake[i].targetX === nextX && snake[i].targetY === nextY) {
             gameOver();
@@ -215,11 +200,9 @@ function advanceGridStep() {
         }
     }
 
-    // Prepend a fresh tracking point onto our snake array chain
     let newHeadTarget = { x: currentHead.targetX, y: currentHead.targetY, targetX: nextX, targetY: nextY };
     snake.unshift(newHeadTarget);
 
-    // Collision Check: Eating Food 
     let eatenFoodIdx = foods.findIndex(f => f.x === nextX && f.y === nextY);
     if (eatenFoodIdx !== -1) {
         foods.splice(eatenFoodIdx, 1);
@@ -235,14 +218,11 @@ function advanceGridStep() {
             triggerLevelUp();
         }
     } else {
-        // Normal step means discarding tail block target
         snake.pop();
     }
 
-    // Check entity collisions at static node intervals
     checkCombatCollisions(nextX, nextY);
 
-    // Auto weapon fire logic
     if (attackSpeed > 0) {
         let now = Date.now();
         if (now - lastShotTime > (1000 / attackSpeed)) {
@@ -253,7 +233,6 @@ function advanceGridStep() {
 }
 
 function checkCombatCollisions(headGridX, headGridY) {
-    // 1. Regular Enemies vs Snake Head
     enemies.forEach((enemy, eIdx) => {
         if (headGridX === enemy.x && headGridY === enemy.y) {
             enemies.splice(eIdx, 1);
@@ -262,20 +241,18 @@ function checkCombatCollisions(headGridX, headGridY) {
         }
     });
 
-    // 2. Boss Arena Combat Interactions
     bosses.forEach((boss, bIdx) => {
         if (headGridX === boss.x && headGridY === boss.y) {
             handleDamage();
         }
 
-        // Projectiles tracking hitboxes against massive boss target
         projectiles.forEach((proj, pIdx) => {
             let pX = Math.floor(proj.x);
             let pY = Math.floor(proj.y);
             if (pX === boss.x && pY === boss.y) {
                 projectiles.splice(pIdx, 1);
                 boss.hp--;
-                boss.flashFrames = 4; // Visual color flash indication
+                boss.flashFrames = 4; 
                 score += 15;
                 createExplosion(boss.x, boss.y, '#ff0055', 8);
 
@@ -283,14 +260,13 @@ function checkCombatCollisions(headGridX, headGridY) {
                     createExplosion(boss.x, boss.y, '#ffea00', 35);
                     bosses.splice(bIdx, 1);
                     score += 200;
-                    xp += 3; // Massive experience boost
+                    xp += 3; 
                     if (xp >= xpNeeded) triggerLevelUp();
                 }
             }
         });
     });
 
-    // Projectiles clearing small enemies
     projectiles.forEach((proj, pIdx) => {
         let pX = Math.floor(proj.x);
         let pY = Math.floor(proj.y);
@@ -330,6 +306,7 @@ function fireProjectiles() {
     });
 }
 
+// Fixed bug where spikes references undefined filter logic
 function triggerSpikes(gx, gy) {
     createExplosion(gx, gy, '#00ffcc', 20);
     enemies = enemies.filter(enemy => {
@@ -349,7 +326,6 @@ function triggerLevelUp() {
     xp = 0;
     xpNeeded = Math.floor(xpNeeded * 1.35);
     
-    // Check for Boss encounter progression triggers
     if (level % 5 === 0) {
         spawnBoss();
     }
@@ -397,11 +373,9 @@ function gameOver() {
     document.getElementById('game-over-screen').classList.remove('hidden');
 }
 
-// Draw function implementing modern graphics and smooth rendering
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // 1. Technical Background Grid
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
     ctx.lineWidth = 1;
     for (let i = 0; i < gridCount; i++) {
@@ -409,7 +383,6 @@ function draw() {
         ctx.beginPath(); ctx.moveTo(0, i * tileSize); ctx.lineTo(canvas.width, i * tileSize); ctx.stroke();
     }
     
-    // 2. Draw Active Foods (Glowing Biotech Orbs)
     foods.forEach(food => {
         let fx = food.x * tileSize + tileSize / 2;
         let fy = food.y * tileSize + tileSize / 2;
@@ -431,7 +404,6 @@ function draw() {
         ctx.restore();
     });
 
-    // 3. Draw Regular Enemies (Floating Cyber-Drones)
     enemies.forEach(enemy => {
         let hoverY = Math.sin((Date.now() / 200) + (enemy.x * enemy.y)) * 4;
         let ex = enemy.x * tileSize + tileSize / 2;
@@ -458,7 +430,6 @@ function draw() {
         ctx.restore();
     });
 
-    // 4. Draw Boss Entity (Massive Core Leviathan)
     bosses.forEach(boss => {
         let bx = boss.x * tileSize + tileSize / 2;
         let by = boss.y * tileSize + tileSize / 2;
@@ -494,7 +465,6 @@ function draw() {
         ctx.restore();
     });
 
-    // 5. Draw Smooth-Flowing Snake Body
     for (let i = snake.length - 1; i >= 0; i--) {
         let part = snake[i];
         let rx = part.x * tileSize + tileSize / 2;
@@ -544,7 +514,6 @@ function draw() {
         ctx.restore();
     }
 
-    // 6. Draw Plasma Projectiles
     projectiles.forEach(proj => {
         let px = proj.x * tileSize + tileSize / 2;
         let py = proj.y * tileSize + tileSize / 2;
@@ -559,7 +528,6 @@ function draw() {
         ctx.restore();
     });
 
-    // 7. Draw FX Particles
     particles.forEach(p => {
         ctx.save();
         ctx.globalAlpha = p.alpha;
@@ -571,7 +539,7 @@ function draw() {
     });
 }
 
-// Keyboard Listeners
+// 1. Keyboard Controls Input Listener
 window.addEventListener('keydown', e => {
     switch (e.key) {
         case 'ArrowUp':    case 'w': if (lastValidDirection.y !== 1)  nextDirection = { x: 0, y: -1 }; break;
@@ -581,7 +549,40 @@ window.addEventListener('keydown', e => {
     }
 });
 
-// Setup resize triggers and initialize
+// 2. High-Performance PWA Mobile Touch Swipe Input Controller
+let touchStartX = 0;
+let touchStartY = 0;
+
+window.addEventListener('touchstart', e => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+}, { passive: true });
+
+window.addEventListener('touchend', e => {
+    if (!touchStartX || !touchStartY) return;
+
+    let diffX = e.changedTouches[0].clientX - touchStartX;
+    let diffY = e.changedTouches[0].clientY - touchStartY;
+    let absDiffX = Math.abs(diffX);
+    let absDiffY = Math.abs(diffY);
+
+    // Filter minor tiny touches to prevent accidents
+    if (Math.max(absDiffX, absDiffY) > 25) {
+        if (absDiffX > absDiffY) {
+            // Horizontal swipe
+            if (diffX > 0 && lastValidDirection.x !== -1) nextDirection = { x: 1, y: 0 };
+            else if (diffX < 0 && lastValidDirection.x !== 1) nextDirection = { x: -1, y: 0 };
+        } else {
+            // Vertical swipe
+            if (diffY > 0 && lastValidDirection.y !== -1) nextDirection = { x: 0, y: 1 };
+            else if (diffY < 0 && lastValidDirection.y !== 1) nextDirection = { x: 0, y: -1 };
+        }
+    }
+    touchStartX = 0;
+    touchStartY = 0;
+}, { passive: true });
+
+// Setup resize triggers and initialize layout
 window.addEventListener('resize', resizeCanvas);
 
 window.onload = () => {
