@@ -254,13 +254,27 @@ function gameOver() {
     document.getElementById('game-over-screen').classList.remove('hidden');
 }
 
-// COMPUTER CONTROLS (Keyboard Input)
+// COMPUTER CONTROLS (Supports Arrow Keys and WASD)
 window.addEventListener('keydown', e => {
-    switch (e.key) {
-        case 'ArrowUp': if (direction.y === 0) nextDirection = { x: 0, y: -1 }; break;
-        case 'ArrowDown': if (direction.y === 0) nextDirection = { x: 0, y: 1 }; break;
-        case 'ArrowLeft': if (direction.x === 0) nextDirection = { x: -1, y: 0 }; break;
-        case 'ArrowRight': if (direction.x === 0) nextDirection = { x: 1, y: 0 }; break;
+    const key = e.key.toLowerCase(); // Converts to lowercase so CapsLock doesn't break it
+    
+    switch (key) {
+        case 'arrowup':
+        case 'w': 
+            if (direction.y === 0) nextDirection = { x: 0, y: -1 }; 
+            break;
+        case 'arrowdown':
+        case 's': 
+            if (direction.y === 0) nextDirection = { x: 0, y: 1 }; 
+            break;
+        case 'arrowleft':
+        case 'a': 
+            if (direction.x === 0) nextDirection = { x: -1, y: 0 }; 
+            break;
+        case 'arrowright':
+        case 'd': 
+            if (direction.x === 0) nextDirection = { x: 1, y: 0 }; 
+            break;
     }
 });
 
