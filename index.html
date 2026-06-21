@@ -27,7 +27,7 @@
         <!-- Options Menu -->
         <div id="options-screen" class="hidden">
             <h2>Options</h2>
-            <div class="option-row">
+            <div class="option-row" id="theme-option-row">
                 <span id="theme-toggle-label" class="option-label">Dark Mode</span>
                 <button id="theme-toggle-btn" class="toggle-btn" aria-label="Toggle dark/light mode"></button>
             </div>
@@ -80,6 +80,7 @@
         </div>
 
         <div id="hud" class="hidden">
+            <button id="pause-btn" aria-label="Pause">❙❙</button>
             <div>Score: <span id="score-val">0</span></div>
             <div>Level: <span id="level-val">1</span></div>
             <div id="xp-bar-container"><div id="xp-bar"></div></div>
@@ -87,6 +88,16 @@
         </div>
 
         <canvas id="gameCanvas" class="hidden"></canvas>
+
+        <!-- Pause Menu -->
+        <div id="pause-screen" class="hidden">
+            <h2>Paused</h2>
+            <div class="menu-buttons">
+                <button id="resume-btn" class="menu-btn primary">Resume</button>
+                <button id="pause-options-btn" class="menu-btn">Options</button>
+                <button id="pause-quit-btn" class="menu-btn">Quit to Main Menu</button>
+            </div>
+        </div>
 
         <!-- Touch D-pad for mobile play -->
         <div id="touch-controls" class="hidden">

@@ -9,6 +9,7 @@
     --pink: #ff007f;
     --card-bg: #252545;
     --card-bg-hover: #3b3b6d;
+    --overlay-bg: rgba(15, 15, 26, 0.95);
 }
 
 body.light-mode {
@@ -18,10 +19,11 @@ body.light-mode {
     --bg-canvas: #ffffff;
     --text-color: #1a1a2e;
     --accent: #8a8ae0;
-    --accent-bright: #00b399;
+    --accent-bright: #00897b;
     --pink: #d6006a;
     --card-bg: #ffffff;
     --card-bg-hover: #e0e0f5;
+    --overlay-bg: rgba(244, 244, 250, 0.97);
 }
 
 * {
@@ -67,6 +69,25 @@ body {
     font-size: 14px;
 }
 
+#pause-btn {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 36px;
+    height: 36px;
+    background: var(--card-bg);
+    border: 2px solid var(--accent);
+    color: var(--text-color);
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 6;
+    opacity: 0.85;
+}
+
 #xp-bar-container {
     grid-column: span 2;
     background: #111;
@@ -97,7 +118,7 @@ canvas {
 #upgrade-screen, #game-over-screen {
     position: absolute;
     top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(15, 15, 26, 0.95);
+    background: var(--overlay-bg);
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -253,6 +274,23 @@ h2 {
     margin-top: 10px;
 }
 
+/* ===== Pause Menu ===== */
+#pause-screen {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: var(--overlay-bg);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    z-index: 15;
+}
+
+#pause-screen .menu-buttons {
+    width: 75%;
+}
+
 /* ===== Options Screen ===== */
 #options-screen {
     position: absolute;
@@ -277,6 +315,17 @@ h2 {
 
 .option-label {
     font-size: 15px;
+}
+
+#theme-option-row {
+    touch-action: none;
+    -webkit-touch-callout: none;
+    border-radius: 6px;
+    transition: background 0.15s;
+}
+
+#theme-option-row.long-pressing {
+    background: rgba(0, 255, 204, 0.18);
 }
 
 .toggle-btn {

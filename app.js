@@ -55,11 +55,63 @@ function getCurrentMoveSpeed() {
     return speed * devSpeedMultiplier;
 }
 
+// Canvas color palettes. Dark mode leans on neon glow (shadowBlur); light
+// mode uses flatter, more saturated colors with outlines instead of glow,
+// since glow effects need a dark background to actually read well.
+const PALETTE = {
+    dark: {
+        gridLine: 'rgba(255, 255, 255, 0.03)',
+        food: '#ff007f',
+        foodGlow: '#ff007f',
+        foodCore: '#ffffff',
+        enemy: '#a124db',
+        enemyEye: '#00ffff',
+        enemyGlow: '#a124db',
+        boss: '#ff0055',
+        bossFlash: '#ffffff',
+        bossCore: '#111116',
+        bossBarBg: 'rgba(0,0,0,0.5)',
+        snakeHead: '#00ffcc',
+        snakeEye: '#ffffff',
+        snakeBodyA: '#00b399',
+        snakeBodyB: '#00806d',
+        shieldRing: 'rgba(0, 255, 255, 0.4)',
+        projectile: '#00ffff',
+        useGlow: true
+    },
+    light: {
+        gridLine: 'rgba(26, 26, 46, 0.07)',
+        food: '#e6005c',
+        foodGlow: 'transparent',
+        foodCore: '#ffffff',
+        enemy: '#7a1fa6',
+        enemyEye: '#00838f',
+        enemyGlow: 'transparent',
+        boss: '#c2003f',
+        bossFlash: '#fff3f6',
+        bossCore: '#2a0a14',
+        bossBarBg: 'rgba(0,0,0,0.15)',
+        snakeHead: '#00897b',
+        snakeEye: '#ffffff',
+        snakeBodyA: '#00897b',
+        snakeBodyB: '#00695c',
+        shieldRing: 'rgba(0, 137, 123, 0.5)',
+        projectile: '#0097a7',
+        useGlow: false
+    }
+};
+
+function getPalette() {
+    return document.body.classList.contains('light-mode') ? PALETTE.light : PALETTE.dark;
+}
+
 function initGame() {
     document.getElementById('main-menu-screen').classList.add('hidden');
     document.getElementById('options-screen').classList.add('hidden');
     document.getElementById('game-over-screen').classList.add('hidden');
     document.getElementById('upgrade-screen').classList.add('hidden');
+    document.getElementById('pause-screen').classList.add('hidden');
+    pausedForMenu = false;
     document.getElementById('hud').classList.remove('hidden');
     canvas.classList.remove('hidden');
     document.getElementById('touch-controls').classList.remove('hidden');
@@ -410,14 +462,17 @@ function updateHUD() {
 
 function gameOver() {
     if(gameInterval) clearInterval(gameInterval);
+    document.getElementById('pause-screen').classList.add('hidden');
     document.getElementById('final-lvl').textContent = level;
     document.getElementById('game-over-screen').classList.remove('hidden');
 }
 
 function returnToMainMenu() {
     if (gameInterval) clearInterval(gameInterval);
+    isPaused = false;
     document.getElementById('game-over-screen').classList.add('hidden');
     document.getElementById('upgrade-screen').classList.add('hidden');
+    document.getElementById('pause-screen').classList.add('hidden');
     document.getElementById('hud').classList.add('hidden');
     canvas.classList.add('hidden');
     document.getElementById('touch-controls').classList.add('hidden');
@@ -426,9 +481,11 @@ function returnToMainMenu() {
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.shadowBlur = 0;
+    const pal = getPalette();
     
     // 1. Technical Background Grid
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+    ctx.strokeStyle = pal.gridLine;
     ctx.lineWidth = 1;
     for (let i = 0; i < gridCount; i++) {
         ctx.beginPath(); ctx.moveTo(i * tileSize, 0); ctx.lineTo(i * tileSize, canvas.height); ctx.stroke();
@@ -442,18 +499,26 @@ function draw() {
         let radius = (tileSize / 2.5) + Math.sin(Date.now() / 150) * 1.5; 
         
         ctx.save();
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = '#ff007f';
+        if (pal.useGlow) {
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = pal.foodGlow;
+        }
         
         let grad = ctx.createRadialGradient(fx, fy, 2, fx, fy, radius);
-        grad.addColorStop(0, '#ffffff');
-        grad.addColorStop(0.4, '#ff007f');
-        grad.addColorStop(1, 'rgba(255, 0, 127, 0)');
+        grad.addColorStop(0, pal.foodCore);
+        grad.addColorStop(0.4, pal.food);
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
         
         ctx.fillStyle = grad;
         ctx.beginPath();
         ctx.arc(fx, fy, radius, 0, Math.PI * 2);
         ctx.fill();
+
+        if (!pal.useGlow) {
+            ctx.strokeStyle = pal.food;
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+        }
         ctx.restore();
     });
 
@@ -465,10 +530,12 @@ function draw() {
         let size = tileSize * 0.7;
 
         ctx.save();
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = '#a124db';
+        if (pal.useGlow) {
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = pal.enemyGlow;
+        }
 
-        ctx.fillStyle = '#a124db';
+        ctx.fillStyle = pal.enemy;
         ctx.beginPath();
         ctx.moveTo(ex, ey - size/2);
         ctx.lineTo(ex + size/2, ey);
@@ -476,8 +543,13 @@ function draw() {
         ctx.lineTo(ex - size/2, ey);
         ctx.closePath();
         ctx.fill();
+        if (!pal.useGlow) {
+            ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
 
-        ctx.fillStyle = '#00ffff';
+        ctx.fillStyle = pal.enemyEye;
         ctx.beginPath();
         ctx.arc(ex, ey, size * 0.18, 0, Math.PI * 2);
         ctx.fill();
@@ -492,29 +564,34 @@ function draw() {
 
         ctx.save();
         if (boss.flashFrames > 0) {
-            ctx.fillStyle = '#ffffff';
+            ctx.fillStyle = pal.bossFlash;
             boss.flashFrames--;
-            ctx.shadowColor = '#ffffff';
+            if (pal.useGlow) ctx.shadowColor = pal.bossFlash;
         } else {
-            ctx.fillStyle = '#ff0055';
-            ctx.shadowColor = '#ff0055';
+            ctx.fillStyle = pal.boss;
+            if (pal.useGlow) ctx.shadowColor = pal.boss;
         }
-        ctx.shadowBlur = 25;
+        if (pal.useGlow) ctx.shadowBlur = 25;
 
         ctx.beginPath();
         ctx.arc(bx, by, pulseSize / 2, 0, Math.PI * 2);
         ctx.fill();
+        if (!pal.useGlow) {
+            ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+        }
 
-        ctx.fillStyle = '#111116';
+        ctx.fillStyle = pal.bossCore;
         ctx.beginPath();
         ctx.arc(bx, by, pulseSize / 3, 0, Math.PI * 2);
         ctx.fill();
 
         let barW = tileSize * 2;
         let barH = 5;
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillStyle = pal.bossBarBg;
         ctx.fillRect(bx - barW/2, by - tileSize, barW, barH);
-        ctx.fillStyle = '#ff0055';
+        ctx.fillStyle = pal.boss;
         ctx.fillRect(bx - barW/2, by - tileSize, barW * (boss.hp / boss.maxHp), barH);
 
         ctx.restore();
@@ -529,19 +606,26 @@ function draw() {
         ctx.save();
         
         if (i === 0) {
-            ctx.shadowBlur = 20;
-            ctx.shadowColor = '#00ffcc';
-            ctx.fillStyle = '#00ffcc';
+            if (pal.useGlow) {
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = pal.snakeHead;
+            }
+            ctx.fillStyle = pal.snakeHead;
             
             ctx.beginPath();
             ctx.arc(rx, ry, tileSize * 0.48, 0, Math.PI * 2);
             ctx.fill();
+            if (!pal.useGlow) {
+                ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+            }
 
             let eyeOffset = tileSize * 0.18;
             let lookAheadX = lastValidDirection.x * 6;
             let lookAheadY = lastValidDirection.y * 6;
             
-            ctx.fillStyle = '#ffffff';
+            ctx.fillStyle = pal.snakeEye;
             let perpX = -lastValidDirection.y * eyeOffset;
             let perpY = lastValidDirection.x * eyeOffset;
 
@@ -555,14 +639,14 @@ function draw() {
             let bodySize = (tileSize * 0.42) * (1 - progress * 0.5); 
             
             if (shieldCount > 0) {
-                ctx.strokeStyle = 'rgba(0, 255, 255, 0.4)';
+                ctx.strokeStyle = pal.shieldRing;
                 ctx.lineWidth = 2;
                 ctx.beginPath();
                 ctx.arc(rx, ry, bodySize + 3, 0, Math.PI * 2);
                 ctx.stroke();
             }
 
-            ctx.fillStyle = (i % 2 === 0) ? '#00b399' : '#00806d';
+            ctx.fillStyle = (i % 2 === 0) ? pal.snakeBodyA : pal.snakeBodyB;
             ctx.beginPath();
             ctx.arc(rx, ry, bodySize, 0, Math.PI * 2);
             ctx.fill();
@@ -576,9 +660,11 @@ function draw() {
         let py = proj.y * tileSize + tileSize / 2;
         
         ctx.save();
-        ctx.shadowBlur = 12;
-        ctx.shadowColor = '#00ffff';
-        ctx.fillStyle = '#00ffff';
+        if (pal.useGlow) {
+            ctx.shadowBlur = 12;
+            ctx.shadowColor = pal.projectile;
+        }
+        ctx.fillStyle = pal.projectile;
         ctx.beginPath();
         ctx.arc(px, py, 4, 0, Math.PI * 2);
         ctx.fill();
@@ -675,6 +761,61 @@ document.getElementById('start-btn').addEventListener('click', () => {
 window.addEventListener('resize', resizeCanvas);
 
 // =====================================================================
+// Pause Menu
+// =====================================================================
+
+const pauseScreen = document.getElementById('pause-screen');
+let pausedForMenu = false; // distinct from upgrade-screen's use of isPaused
+
+function openPauseMenu() {
+    if (!gameInterval) return; // nothing to pause
+    if (!document.getElementById('upgrade-screen').classList.contains('hidden')) return; // don't stack on upgrade picks
+    pausedForMenu = true;
+    isPaused = true;
+    pauseScreen.classList.remove('hidden');
+}
+
+function closePauseMenu() {
+    pausedForMenu = false;
+    isPaused = false;
+    pauseScreen.classList.add('hidden');
+}
+
+document.getElementById('pause-btn').addEventListener('click', openPauseMenu);
+
+document.getElementById('resume-btn').addEventListener('click', closePauseMenu);
+
+document.getElementById('pause-options-btn').addEventListener('click', () => {
+    pauseScreen.classList.add('hidden');
+    openOptions('pause-screen');
+});
+
+document.getElementById('pause-quit-btn').addEventListener('click', () => {
+    pausedForMenu = false;
+    pauseScreen.classList.add('hidden');
+    returnToMainMenu();
+});
+
+// Esc also opens/closes the pause menu on desktop, since there's no
+// guaranteed keyboard on mobile but it's a nice-to-have shortcut.
+window.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (!devConsole.classList.contains('hidden')) {
+        devConsole.classList.add('hidden');
+        return;
+    }
+    if (!optionsScreen.classList.contains('hidden') && optionsReturnTo === 'pause-screen') {
+        closeOptions();
+        return;
+    }
+    if (pausedForMenu) {
+        closePauseMenu();
+    } else {
+        openPauseMenu();
+    }
+});
+
+// =====================================================================
 // Main Menu / Options / Theme
 // =====================================================================
 
@@ -720,14 +861,25 @@ applyTheme();
 applySoundUI();
 
 document.getElementById('options-btn').addEventListener('click', () => {
-    mainMenuScreen.classList.add('hidden');
-    optionsScreen.classList.remove('hidden');
+    openOptions('main-menu-screen');
 });
 
 document.getElementById('options-back-btn').addEventListener('click', () => {
-    optionsScreen.classList.add('hidden');
-    mainMenuScreen.classList.remove('hidden');
+    closeOptions();
 });
+
+let optionsReturnTo = 'main-menu-screen';
+
+function openOptions(returnTo) {
+    optionsReturnTo = returnTo;
+    document.getElementById(returnTo).classList.add('hidden');
+    optionsScreen.classList.remove('hidden');
+}
+
+function closeOptions() {
+    optionsScreen.classList.add('hidden');
+    document.getElementById(optionsReturnTo).classList.remove('hidden');
+}
 
 themeToggleBtn.addEventListener('click', () => {
     lightMode = !lightMode;
@@ -747,6 +899,7 @@ soundToggleBtn.addEventListener('click', () => {
 
 const devConsole = document.getElementById('dev-console');
 const devUnlockHint = document.getElementById('dev-unlock-hint');
+const themeOptionRow = document.getElementById('theme-option-row');
 const LONG_PRESS_MS = 1200;
 let devUnlocked = loadSetting('devUnlocked', false);
 let longPressTimer = null;
@@ -757,21 +910,41 @@ function unlockDevConsole() {
     saveSetting('devUnlocked', true);
     devUnlockHint.classList.remove('hidden');
     document.getElementById('dev-open-btn').classList.remove('hidden');
+    themeOptionRow.classList.remove('long-pressing');
 }
 
-function startLongPress() {
+function startLongPress(e) {
+    // Prevent iOS Safari's text-selection / "Look Up" callout from
+    // hijacking the hold gesture before our timer can fire. Skip this
+    // when the press starts on the toggle button itself so its normal
+    // click still works immediately.
+    if (e.target !== themeToggleBtn && e.cancelable) e.preventDefault();
     clearTimeout(longPressTimer);
+    themeOptionRow.classList.add('long-pressing');
     longPressTimer = setTimeout(unlockDevConsole, LONG_PRESS_MS);
 }
 
 function cancelLongPress() {
     clearTimeout(longPressTimer);
+    themeOptionRow.classList.remove('long-pressing');
 }
 
-themeToggleLabel.addEventListener('mousedown', startLongPress);
-themeToggleLabel.addEventListener('touchstart', startLongPress, { passive: true });
+// touchstart is the authoritative event on mobile; passive:false so
+// preventDefault() actually works. We skip binding mousedown when touch
+// is available to avoid iOS firing both and double-triggering the timer.
+let usingTouch = false;
+themeOptionRow.addEventListener('touchstart', (e) => {
+    usingTouch = true;
+    startLongPress(e);
+}, { passive: false });
+
+themeOptionRow.addEventListener('mousedown', (e) => {
+    if (usingTouch) return;
+    startLongPress(e);
+});
+
 ['mouseup', 'mouseleave', 'touchend', 'touchcancel'].forEach(evt => {
-    themeToggleLabel.addEventListener(evt, cancelLongPress);
+    themeOptionRow.addEventListener(evt, cancelLongPress);
 });
 
 if (devUnlocked) {
