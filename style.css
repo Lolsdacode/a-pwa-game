@@ -123,3 +123,47 @@ h2 {
     cursor: pointer;
     margin-top: 20px;
 }
+
+/* Touch D-pad: floats over the bottom-right of the canvas, only really
+   needed (and shown) on touch-capable devices */
+#touch-controls {
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    width: 150px;
+    height: 150px;
+    display: none;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: 1fr 1fr 1fr;
+    gap: 4px;
+    z-index: 5;
+}
+
+@media (pointer: coarse) {
+    #touch-controls {
+        display: grid;
+    }
+}
+
+.dpad-btn {
+    background: rgba(78, 78, 187, 0.35);
+    border: 2px solid rgba(78, 78, 187, 0.7);
+    border-radius: 8px;
+    color: #fff;
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    touch-action: none;
+}
+
+.dpad-btn:active {
+    background: rgba(0, 255, 204, 0.4);
+    border-color: #00ffcc;
+}
+
+#btn-up    { grid-column: 2; grid-row: 1; }
+#btn-left  { grid-column: 1; grid-row: 2; }
+#btn-right { grid-column: 3; grid-row: 2; }
+#btn-down  { grid-column: 2; grid-row: 3; }

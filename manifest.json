@@ -4,14 +4,21 @@
   "start_url": ".",
   "display": "standalone",
   "background_color": "#0f0f1a",
-  "theme-color": "#1a1a2e",
+  "theme_color": "#1a1a2e",
   "description": "An action roguelike snake arcade game.",
   "orientation": "portrait",
   "icons": [
     {
-      "src": "https://flaticon.com",
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }

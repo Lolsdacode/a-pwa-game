@@ -7,6 +7,10 @@
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a1a2e">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
 </head>
 <body>
     <div id="game-container">
@@ -18,6 +22,14 @@
         </div>
 
         <canvas id="gameCanvas"></canvas>
+
+        <!-- Touch D-pad for mobile play -->
+        <div id="touch-controls">
+            <button class="dpad-btn" id="btn-up" aria-label="Up">▲</button>
+            <button class="dpad-btn" id="btn-left" aria-label="Left">◀</button>
+            <button class="dpad-btn" id="btn-right" aria-label="Right">▶</button>
+            <button class="dpad-btn" id="btn-down" aria-label="Down">▼</button>
+        </div>
 
         <!-- Upgrade overlay when leveling up -->
         <div id="upgrade-screen" class="hidden">
@@ -34,5 +46,14 @@
     </div>
 
     <script src="app.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('service-worker.js').catch(err => {
+                    console.warn('Service worker registration failed:', err);
+                });
+            });
+        }
+    </script>
 </body>
 </html>

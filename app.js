@@ -378,6 +378,7 @@ function updateHUD() {
 
 function gameOver() {
     if(gameInterval) clearInterval(gameInterval);
+    document.getElementById('final-lvl').textContent = level;
     document.getElementById('game-over-screen').classList.remove('hidden');
 }
 
@@ -561,6 +562,64 @@ window.addEventListener('keydown', e => {
         case 'ArrowLeft':  case 'a': if (lastValidDirection.x !== 1)  nextDirection = { x: -1, y: 0 }; break;
         case 'ArrowRight': case 'd': if (lastValidDirection.x !== -1) nextDirection = { x: 1, y: 0 };  break;
     }
+});
+
+// Shared helper so swipe and D-pad buttons both respect the
+// "can't reverse directly into yourself" rule that keydown uses.
+function requestDirection(dx, dy) {
+    if (dx !== 0 && lastValidDirection.x !== -dx) {
+        nextDirection = { x: dx, y: 0 };
+    } else if (dy !== 0 && lastValidDirection.y !== -dy) {
+        nextDirection = { x: 0, y: dy };
+    }
+}
+
+// --- Touch swipe controls (on the canvas itself) ---
+let touchStartX = 0;
+let touchStartY = 0;
+const SWIPE_THRESHOLD = 24; // px - minimum distance to count as an intentional swipe
+
+canvas.addEventListener('touchstart', e => {
+    const t = e.changedTouches[0];
+    touchStartX = t.clientX;
+    touchStartY = t.clientY;
+}, { passive: true });
+
+canvas.addEventListener('touchend', e => {
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStartX;
+    const dy = t.clientY - touchStartY;
+
+    if (Math.abs(dx) < SWIPE_THRESHOLD && Math.abs(dy) < SWIPE_THRESHOLD) return;
+
+    if (Math.abs(dx) > Math.abs(dy)) {
+        requestDirection(dx > 0 ? 1 : -1, 0);
+    } else {
+        requestDirection(0, dy > 0 ? 1 : -1);
+    }
+}, { passive: true });
+
+// --- Touch D-pad buttons (fallback / easier for some players) ---
+function bindDpadButton(id, dx, dy) {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    // touchstart fires faster than click and lets us preventDefault
+    // so it doesn't also fire a ghost click/zoom on some browsers.
+    btn.addEventListener('touchstart', e => {
+        e.preventDefault();
+        requestDirection(dx, dy);
+    }, { passive: false });
+    btn.addEventListener('click', () => requestDirection(dx, dy));
+}
+
+bindDpadButton('btn-up', 0, -1);
+bindDpadButton('btn-down', 0, 1);
+bindDpadButton('btn-left', -1, 0);
+bindDpadButton('btn-right', 1, 0);
+
+// --- Restart button ---
+document.getElementById('restart-btn').addEventListener('click', () => {
+    initGame();
 });
 
 window.addEventListener('resize', resizeCanvas);
