@@ -37,41 +37,57 @@
         <!-- Options Menu -->
         <div id="options-screen" class="hidden">
             <h2>Options</h2>
-            <div class="option-row" id="theme-option-row">
-                <span id="theme-toggle-label" class="option-label">Dark Mode</span>
-                <button id="theme-toggle-btn" class="toggle-btn" aria-label="Toggle dark/light mode"></button>
-            </div>
-            <div class="option-row">
-                <span class="option-label">Sound Effects</span>
-                <button id="sound-toggle-btn" class="toggle-btn" aria-label="Toggle sound effects"></button>
-            </div>
-            <div class="option-row">
-                <span class="option-label">Music</span>
-                <button id="music-toggle-btn" class="toggle-btn" aria-label="Toggle music"></button>
-            </div>
-            <div class="option-row" id="music-volume-row">
-                <span class="option-label">Music Volume</span>
-                <input type="range" id="music-volume-slider" min="0" max="100" value="50">
-            </div>
 
-            <div class="options-section-title">Controls</div>
-            <div class="option-row">
-                <span class="option-label">Up</span>
-                <button class="remap-btn" data-direction="up"></button>
-            </div>
-            <div class="option-row">
-                <span class="option-label">Down</span>
-                <button class="remap-btn" data-direction="down"></button>
-            </div>
-            <div class="option-row">
-                <span class="option-label">Left</span>
-                <button class="remap-btn" data-direction="left"></button>
-            </div>
-            <div class="option-row">
-                <span class="option-label">Right</span>
-                <button class="remap-btn" data-direction="right"></button>
-            </div>
-            <button id="controls-reset-btn" class="menu-btn">Reset Controls</button>
+            <details class="options-section" open>
+                <summary>Display</summary>
+                <div class="options-section-body">
+                    <div class="option-row" id="theme-option-row">
+                        <span id="theme-toggle-label" class="option-label">Dark Mode</span>
+                        <button id="theme-toggle-btn" class="toggle-btn" aria-label="Toggle dark/light mode"></button>
+                    </div>
+                </div>
+            </details>
+
+            <details class="options-section">
+                <summary>Audio</summary>
+                <div class="options-section-body">
+                    <div class="option-row">
+                        <span class="option-label">Sound Effects</span>
+                        <button id="sound-toggle-btn" class="toggle-btn" aria-label="Toggle sound effects"></button>
+                    </div>
+                    <div class="option-row">
+                        <span class="option-label">Music</span>
+                        <button id="music-toggle-btn" class="toggle-btn" aria-label="Toggle music"></button>
+                    </div>
+                    <div class="option-row" id="music-volume-row">
+                        <span class="option-label">Music Volume</span>
+                        <input type="range" id="music-volume-slider" min="0" max="100" value="50">
+                    </div>
+                </div>
+            </details>
+
+            <details class="options-section">
+                <summary>Controls</summary>
+                <div class="options-section-body">
+                    <div class="option-row">
+                        <span class="option-label">Up</span>
+                        <button class="remap-btn" data-direction="up"></button>
+                    </div>
+                    <div class="option-row">
+                        <span class="option-label">Down</span>
+                        <button class="remap-btn" data-direction="down"></button>
+                    </div>
+                    <div class="option-row">
+                        <span class="option-label">Left</span>
+                        <button class="remap-btn" data-direction="left"></button>
+                    </div>
+                    <div class="option-row">
+                        <span class="option-label">Right</span>
+                        <button class="remap-btn" data-direction="right"></button>
+                    </div>
+                    <button id="controls-reset-btn" class="menu-btn">Reset Controls</button>
+                </div>
+            </details>
 
             <button id="options-back-btn" class="menu-btn">Back</button>
             <p id="dev-unlock-hint" class="hidden">🛠 Dev console unlocked</p>
@@ -119,6 +135,15 @@
                 <div class="dev-row">
                     <button id="dev-hide-menu-btn" class="dev-danger-btn">🔒 Hide Dev Menu</button>
                 </div>
+
+                <details class="dev-section">
+                    <summary>Perk Picker</summary>
+                    <div id="dev-perk-list"></div>
+                    <div class="dev-row buttons-row">
+                        <button id="dev-perks-apply" class="dev-perk-action-btn">Apply Checked (+1 each)</button>
+                        <button id="dev-perks-remove" class="dev-perk-action-btn dev-danger-action">Remove Checked (−1 each)</button>
+                    </div>
+                </details>
             </div>
         </div>
 

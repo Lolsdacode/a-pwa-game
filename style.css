@@ -580,16 +580,56 @@ h2 {
     border-bottom: 1px solid rgba(128,128,128,0.25);
 }
 
-.options-section-title {
+.options-section {
     width: 100%;
     max-width: 320px;
-    text-align: left;
-    font-size: 12px;
-    letter-spacing: 1.5px;
+    margin-top: 14px;
+    border: 1px solid rgba(128,128,128,0.25);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.options-section summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 14px 16px;
+    font-size: 13px;
+    font-weight: bold;
+    letter-spacing: 1px;
     text-transform: uppercase;
+    opacity: 0.85;
+    background: var(--bg-hud);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.options-section summary::-webkit-details-marker {
+    display: none;
+}
+
+.options-section summary::after {
+    content: '▸';
+    font-size: 12px;
     opacity: 0.6;
-    margin-top: 24px;
-    margin-bottom: 4px;
+    transition: transform 0.2s;
+}
+
+.options-section[open] summary::after {
+    transform: rotate(90deg);
+}
+
+.options-section-body {
+    padding: 6px 16px 10px;
+}
+
+.options-section-body .option-row:last-child {
+    border-bottom: none;
+}
+
+.options-section-body #controls-reset-btn {
+    margin-top: 14px;
+    margin-bottom: 6px;
 }
 
 #music-volume-row {
@@ -781,4 +821,97 @@ h2 {
 .dev-danger-btn:hover {
     background: #f33;
     color: #000;
+}
+
+/* Dev console collapsible sections (e.g. Perk Picker) */
+.dev-section {
+    border: 1px solid #0f0;
+    border-radius: 4px;
+    margin-top: 4px;
+}
+
+.dev-section summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 10px 12px;
+    font-size: 13px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    background: #001a00;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.dev-section summary::-webkit-details-marker {
+    display: none;
+}
+
+.dev-section summary::after {
+    content: '▸';
+    transition: transform 0.2s;
+}
+
+.dev-section[open] summary::after {
+    transform: rotate(90deg);
+}
+
+#dev-perk-list {
+    max-height: 240px;
+    overflow-y: auto;
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.dev-perk-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #003300;
+}
+
+.dev-perk-row input[type="checkbox"] {
+    margin-top: 2px;
+    accent-color: #0f0;
+    flex: none;
+}
+
+.dev-perk-row-text {
+    flex: 1;
+}
+
+.dev-perk-row-title {
+    font-weight: bold;
+}
+
+.dev-perk-row-desc {
+    opacity: 0.7;
+    font-size: 11px;
+    margin-top: 2px;
+}
+
+.dev-perk-row-nonremovable {
+    opacity: 0.5;
+}
+
+.dev-perk-action-btn {
+    flex: 1;
+    font-size: 11px !important;
+    padding: 8px 6px !important;
+    text-align: center;
+}
+
+.dev-perk-action-btn.dev-danger-action {
+    background: #330000 !important;
+    border-color: #f33 !important;
+    color: #f66 !important;
+}
+
+.dev-perk-action-btn.dev-danger-action:hover {
+    background: #f33 !important;
+    color: #000 !important;
 }

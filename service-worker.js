@@ -1,6 +1,6 @@
 // Bump this version string whenever you change any cached file,
 // so the browser knows to fetch fresh copies instead of stale ones.
-const CACHE_NAME = 'snake-rogue-v4';
+const CACHE_NAME = 'snake-rogue-v5';
 
 const APP_SHELL_FILES = [
     './',

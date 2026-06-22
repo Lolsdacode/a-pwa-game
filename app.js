@@ -1,8 +1,16 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-// Game grid & smooth translation state
-let gridCount = 20;
+// Game grid & smooth translation state.
+// gridCols/gridRows are computed per-axis from the canvas's actual
+// dimensions (resizeCanvas), since a phone's tall narrow canvas has a
+// very different aspect ratio than desktop's near-square one. Using a
+// single shared "gridCount" for both axes caused the playable area to
+// be capped at a square smaller than the real canvas on tall screens,
+// so collisions (especially the bottom wall) triggered before the
+// snake visually reached the edge.
+let gridCols = 20;
+let gridRows = 20;
 let tileSize;
 let snake = []; 
 let direction = { x: 0, y: -1 };
@@ -54,6 +62,7 @@ const upgradesPool = [
     { id: 'spikes', title: 'Nova Spikes', icon: '⚡', desc: 'Eaten food triggers an explosion killing near enemies', rarity: 'rare' },
     { id: 'more_food', title: 'Scout Radar', icon: '🍎', desc: 'Permanently increases the active food count on the field', rarity: 'common' },
     { id: 'speed', title: 'Adrenal Surge', icon: '💨', desc: 'Permanently increases movement speed', rarity: 'common' },
+    { id: 'slow_field', title: 'Stasis Field', icon: '🐌', desc: 'Slows your movement for more control, and grants a shield charge', rarity: 'common' },
     { id: 'score_mult', title: 'Precision Core', icon: '🎯', desc: 'Permanently increases score gained from all sources by 25%', rarity: 'rare' },
     { id: 'quick_learner', title: 'Quick Learner', icon: '🧠', desc: 'Immediately reduces XP needed to reach the next level', rarity: 'common' },
     { id: 'second_wind', title: 'Second Wind', icon: '💚', desc: 'Cheats death once, reviving with 2 HP instead of dying', rarity: 'legendary' },
@@ -62,9 +71,11 @@ const upgradesPool = [
     { id: 'vital_surge', title: 'Vital Surge', icon: '🩹', desc: 'Raises max HP cap and heals 1 heart', rarity: 'rare' }
 ];
 
+const MIN_MOVE_SPEED = 0.12; // floor so the slow-down perk can't break movement or make it unplayable
+
 function getCurrentMoveSpeed() {
     let speed = BASE_MOVE_SPEED + (level - 1) * PER_LEVEL_SPEED_GAIN + speedBonus;
-    speed = Math.min(speed, MAX_MOVE_SPEED);
+    speed = Math.min(Math.max(speed, MIN_MOVE_SPEED), MAX_MOVE_SPEED);
     return speed * devSpeedMultiplier;
 }
 
@@ -137,11 +148,15 @@ function initGame() {
 
     resizeCanvas();
     
-    // Smooth positions track float values for sub-grid rendering
+    // Smooth positions track float values for sub-grid rendering.
+    // Start centered on whatever the real grid turns out to be, since
+    // gridCols/gridRows now vary with the device's actual screen shape.
+    const startX = Math.floor(gridCols / 2);
+    const startY = Math.floor(gridRows / 2);
     snake = [
-        { x: 10, y: 10, targetX: 10, targetY: 10 },
-        { x: 10, y: 11, targetX: 10, targetY: 11 },
-        { x: 10, y: 12, targetX: 10, targetY: 12 }
+        { x: startX, y: startY,     targetX: startX, targetY: startY },
+        { x: startX, y: startY + 1, targetX: startX, targetY: startY + 1 },
+        { x: startX, y: startY + 2, targetX: startX, targetY: startY + 2 }
     ];
     
     direction = { x: 0, y: -1 };
@@ -174,7 +189,17 @@ function resizeCanvas() {
     const rect = canvas.getBoundingClientRect();
     canvas.width = rect.width;
     canvas.height = rect.height;
-    tileSize = Math.floor(canvas.width / gridCount);
+
+    // Keep tiles square by basing tileSize on a fixed column target
+    // against the canvas's actual width, then fill however many rows
+    // actually fit in the real height - rather than assuming a square
+    // 20x20 grid regardless of the canvas's real aspect ratio.
+    const TARGET_COLUMNS = 20;
+    tileSize = Math.floor(canvas.width / TARGET_COLUMNS);
+    if (tileSize < 1) tileSize = 1;
+
+    gridCols = Math.floor(canvas.width / tileSize);
+    gridRows = Math.floor(canvas.height / tileSize);
 }
 
 function createExplosion(gridX, gridY, color, count = 8) {
@@ -195,8 +220,8 @@ function getSafeGridPosition() {
     let attempts = 0;
     while (attempts < 150) {
         let pos = {
-            x: Math.floor(Math.random() * gridCount),
-            y: Math.floor(Math.random() * gridCount)
+            x: Math.floor(Math.random() * gridCols),
+            y: Math.floor(Math.random() * gridRows)
         };
         let onSnake = snake.some(p => Math.round(p.targetX) === pos.x && Math.round(p.targetY) === pos.y);
         let onFood = foods.some(f => f.x === pos.x && f.y === pos.y);
@@ -206,7 +231,7 @@ function getSafeGridPosition() {
         if (!onSnake && !onFood && !onEnemy && !onBoss) return pos;
         attempts++;
     }
-    return { x: Math.floor(Math.random() * gridCount), y: Math.floor(Math.random() * gridCount) };
+    return { x: Math.floor(Math.random() * gridCols), y: Math.floor(Math.random() * gridRows) };
 }
 
 function refillFood() {
@@ -222,14 +247,16 @@ function spawnEnemy() {
 }
 
 function spawnBoss() {
+    const cx = Math.floor(gridCols / 2);
+    const cy = Math.floor(gridRows / 2);
     bosses.push({
-        x: Math.floor(gridCount / 2),
-        y: Math.floor(gridCount / 2),
+        x: cx,
+        y: cy,
         hp: 5,
         maxHp: 5,
         flashFrames: 0
     });
-    createExplosion(gridCount/2, gridCount/2, '#ff0055', 30);
+    createExplosion(cx, cy, '#ff0055', 30);
 }
 
 function gameLoop(now) {
@@ -272,7 +299,7 @@ function updateTick(deltaSeconds) {
     projectiles.forEach((proj, pIdx) => {
         proj.x += proj.vx;
         proj.y += proj.vy;
-        if (proj.x < 0 || proj.x >= gridCount || proj.y < 0 || proj.y >= gridCount) {
+        if (proj.x < 0 || proj.x >= gridCols || proj.y < 0 || proj.y >= gridRows) {
             projectiles.splice(pIdx, 1);
         }
     });
@@ -296,11 +323,12 @@ function advanceGridStep() {
     let nextY = currentHead.targetY + direction.y;
 
     // Boundary Wall Crashes
-    if (nextX < 0 || nextX >= gridCount || nextY < 0 || nextY >= gridCount) {
+    let hitWall = nextX < 0 || nextX >= gridCols || nextY < 0 || nextY >= gridRows;
+    if (hitWall) {
         if (godMode) {
             // Wrap around instead of dying when invincible
-            nextX = (nextX + gridCount) % gridCount;
-            nextY = (nextY + gridCount) % gridCount;
+            nextX = (nextX + gridCols) % gridCols;
+            nextY = (nextY + gridRows) % gridRows;
         } else if (shieldCount > 0) {
             shieldCount--;
             createExplosion(currentHead.targetX, currentHead.targetY, '#00ffcc', 12);
@@ -495,19 +523,51 @@ function triggerLevelUp() {
     document.getElementById('upgrade-screen').classList.remove('hidden');
 }
 
-function applyUpgrade(id) {
+// Perks that are instant one-time effects (e.g. an immediate XP discount)
+// have nothing persistent to undo, so they're excluded from the dev
+// console's removable list.
+const NON_REMOVABLE_PERKS = ['quick_learner'];
+
+function applyPerkEffect(id) {
     if (id === 'hp') hp = Math.min(hp + 1, maxHpCap);
     if (id === 'fireball') attackSpeed += 1.5; 
     if (id === 'shield') shieldCount++;
     if (id === 'spikes') hasSpikes = true;
     if (id === 'more_food') { maxFoodCount++; refillFood(); }
     if (id === 'speed') speedBonus += 0.05;
+    if (id === 'slow_field') { speedBonus -= 0.06; shieldCount++; }
     if (id === 'score_mult') scoreMultiplier += 0.25;
     if (id === 'quick_learner') xpNeeded = Math.max(1, Math.floor(xpNeeded * 0.7));
     if (id === 'second_wind') hasSecondWind = true;
     if (id === 'phase_shift') enemySpawnReduction = Math.min(enemySpawnReduction + 0.15, 0.6);
     if (id === 'overcharge') hasSplashDamage = true;
     if (id === 'vital_surge') { maxHpCap = Math.min(maxHpCap + 1, 9); hp = Math.min(hp + 1, maxHpCap); }
+}
+
+// Mirrors applyPerkEffect so the dev console can undo exactly one
+// "stack" of a perk. For simple on/off perks this just flips the flag
+// back off; for stacking perks it subtracts the same amount applyPerkEffect
+// added. Clamped with Math.max(..., 0 or floor) so it can never go
+// negative or below a perk's natural minimum.
+function removePerkEffect(id) {
+    if (id === 'hp') return; // healing isn't something to "take back" - no-op
+    if (id === 'fireball') attackSpeed = Math.max(0, attackSpeed - 1.5);
+    if (id === 'shield') shieldCount = Math.max(0, shieldCount - 1);
+    if (id === 'spikes') hasSpikes = false;
+    if (id === 'more_food') maxFoodCount = Math.max(1, maxFoodCount - 1);
+    if (id === 'speed') speedBonus = Math.max(speedBonus - 0.05, -0.5);
+    if (id === 'slow_field') { speedBonus = Math.min(speedBonus + 0.06, 0.5); shieldCount = Math.max(0, shieldCount - 1); }
+    if (id === 'score_mult') scoreMultiplier = Math.max(0.25, scoreMultiplier - 0.25);
+    if (id === 'second_wind') { hasSecondWind = false; secondWindUsed = false; }
+    if (id === 'phase_shift') enemySpawnReduction = Math.max(0, enemySpawnReduction - 0.15);
+    if (id === 'overcharge') hasSplashDamage = false;
+    if (id === 'vital_surge') { maxHpCap = Math.max(5, maxHpCap - 1); hp = Math.min(hp, maxHpCap); }
+    updateHUD();
+}
+
+function applyUpgrade(id) {
+    applyPerkEffect(id);
+    updateHUD();
     
     document.getElementById('upgrade-screen').classList.add('hidden');
     isPaused = false;
@@ -623,9 +683,11 @@ function draw() {
     // 1. Technical Background Grid
     ctx.strokeStyle = pal.gridLine;
     ctx.lineWidth = 1;
-    for (let i = 0; i < gridCount; i++) {
+    for (let i = 0; i <= gridCols; i++) {
         ctx.beginPath(); ctx.moveTo(i * tileSize, 0); ctx.lineTo(i * tileSize, canvas.height); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(0, i * tileSize); ctx.lineTo(canvas.width, i * tileSize); ctx.stroke();
+    }
+    for (let j = 0; j <= gridRows; j++) {
+        ctx.beginPath(); ctx.moveTo(0, j * tileSize); ctx.lineTo(canvas.width, j * tileSize); ctx.stroke();
     }
     
     // 2. Draw Active Foods (Glowing Biotech Orbs)
@@ -1240,93 +1302,190 @@ soundToggleBtn.addEventListener('click', () => {
 
 // =====================================================================
 // Background Music (synthesized with Web Audio API - no audio files)
+// Dark/tense ambient soundscape: a sustained detuned sub-bass drone,
+// filtered noise hiss, a slow filter-sweep LFO, and sparse minor-key
+// pulses rather than a cheerful looping melody - aiming for "ominous
+// lab ambience" rather than a chiptune tune.
 // =====================================================================
 
 let musicOn = loadSetting('musicOn', true);
 let musicVolume = loadSetting('musicVolume', 0.5);
 let audioCtx = null;
 let musicGainNode = null;
-let musicSchedulerTimer = null;
-let musicNoteIndex = 0;
+let musicNodes = null; // holds all persistent nodes so we can tear them down cleanly
+let pulseSchedulerTimer = null;
+let pulseIndex = 0;
 let musicIntensity = 'menu'; // 'menu' | 'game'
 
-// Two short looping note sequences (semitone offsets from a root note),
-// using simple square/triangle oscillators for a lightweight chiptune
-// feel. Negative numbers are below the root note.
-const MENU_MELODY = [0, 3, 7, 10, 7, 3, 0, -2, 0, 3, 7, 12, 10, 7, 3, 0];
-const GAME_MELODY  = [0, 5, 7, 12, 10, 7, 5, 3, 0, 5, 9, 12, 14, 12, 9, 5];
-const ROOT_FREQ = 196; // G3 - low enough to sit in the background, not fight the SFX range
-const NOTE_DURATION = 0.18; // seconds per step
+// Sparse pulse sequences, in semitones from the root drone note. These
+// are intentionally minor/dissonant and spaced apart - tension, not melody.
+const MENU_PULSES = [0, null, null, -5, null, 3, null, null, 0, null, -5, null];
+const GAME_PULSES  = [0, null, 7, null, -5, 3, null, 6, 0, null, 7, null, -5, null];
+const ROOT_FREQ = 73.4; // D2 - sits well below the gameplay SFX range as a true sub-bass
+const PULSE_STEP_SECONDS = 0.55;
 
 function ensureAudioContext() {
     if (audioCtx) return;
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
     musicGainNode = audioCtx.createGain();
     musicGainNode.gain.value = musicVolume;
     musicGainNode.connect(audioCtx.destination);
+
+    musicNodes = buildDroneLayer();
+}
+
+// Builds the always-on drone + noise hiss + slow filter sweep. These
+// nodes run continuously once started; only their gain/filter values
+// change between menu and game intensity.
+function buildDroneLayer() {
+    const now = audioCtx.currentTime;
+
+    // Two detuned sub-bass oscillators for a thick, slightly unstable hum
+    const droneGain = audioCtx.createGain();
+    droneGain.gain.value = 0.22;
+
+    const osc1 = audioCtx.createOscillator();
+    osc1.type = 'sawtooth';
+    osc1.frequency.value = ROOT_FREQ;
+
+    const osc2 = audioCtx.createOscillator();
+    osc2.type = 'sawtooth';
+    osc2.frequency.value = ROOT_FREQ * 1.008; // slight detune for beating/unease
+
+    const droneFilter = audioCtx.createBiquadFilter();
+    droneFilter.type = 'lowpass';
+    droneFilter.frequency.value = 220;
+    droneFilter.Q.value = 0.7;
+
+    osc1.connect(droneFilter);
+    osc2.connect(droneFilter);
+    droneFilter.connect(droneGain);
+    droneGain.connect(musicGainNode);
+    osc1.start(now);
+    osc2.start(now);
+
+    // Slow LFO sweeping the drone filter's cutoff for a "breathing" feel
+    const lfo = audioCtx.createOscillator();
+    lfo.type = 'sine';
+    lfo.frequency.value = 0.06; // ~16 second cycle
+    const lfoGain = audioCtx.createGain();
+    lfoGain.gain.value = 90;
+    lfo.connect(lfoGain);
+    lfoGain.connect(droneFilter.frequency);
+    lfo.start(now);
+
+    // Filtered white noise for a faint "lab static" texture under everything
+    const noiseBuffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
+    const noiseData = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < noiseData.length; i++) noiseData[i] = Math.random() * 2 - 1;
+
+    const noiseSource = audioCtx.createBufferSource();
+    noiseSource.buffer = noiseBuffer;
+    noiseSource.loop = true;
+
+    const noiseFilter = audioCtx.createBiquadFilter();
+    noiseFilter.type = 'bandpass';
+    noiseFilter.frequency.value = 800;
+    noiseFilter.Q.value = 0.5;
+
+    const noiseGain = audioCtx.createGain();
+    noiseGain.gain.value = 0.015;
+
+    noiseSource.connect(noiseFilter);
+    noiseFilter.connect(noiseGain);
+    noiseGain.connect(musicGainNode);
+    noiseSource.start(now);
+
+    // A dedicated gain + filter for the sparse pulses, so their tone can
+    // differ from the drone without affecting it
+    const pulseFilter = audioCtx.createBiquadFilter();
+    pulseFilter.type = 'lowpass';
+    pulseFilter.frequency.value = 500;
+    pulseFilter.Q.value = 1;
+    pulseFilter.connect(musicGainNode);
+
+    return { droneGain, droneFilter, osc1, osc2, lfo, noiseSource, noiseGain, pulseFilter };
 }
 
 function semitoneToFreq(semitones) {
-    return ROOT_FREQ * Math.pow(2, semitones / 12);
+    return ROOT_FREQ * Math.pow(2, semitones / 12) * 4; // *4 puts pulses ~2 octaves above the drone
 }
 
-function playMusicNote(freq, startTime, duration, wave) {
+function playPulse(semitone, startTime) {
     const osc = audioCtx.createOscillator();
     const noteGain = audioCtx.createGain();
-    osc.type = wave;
-    osc.frequency.value = freq;
+    osc.type = 'triangle';
+    osc.frequency.value = semitoneToFreq(semitone);
 
-    // Quick fade in/out per note avoids clicky edges between notes
+    // Slow attack, slower release - a held tone rather than a "beep"
+    const peak = musicIntensity === 'game' ? 0.16 : 0.11;
     noteGain.gain.setValueAtTime(0, startTime);
-    noteGain.gain.linearRampToValueAtTime(0.5, startTime + 0.02);
-    noteGain.gain.linearRampToValueAtTime(0, startTime + duration * 0.95);
+    noteGain.gain.linearRampToValueAtTime(peak, startTime + 0.35);
+    noteGain.gain.linearRampToValueAtTime(0, startTime + 1.6);
 
     osc.connect(noteGain);
-    noteGain.connect(musicGainNode);
+    noteGain.connect(musicNodes.pulseFilter);
     osc.start(startTime);
-    osc.stop(startTime + duration);
+    osc.stop(startTime + 1.7);
 }
 
-function scheduleNextMusicStep() {
+function scheduleNextPulse() {
     if (!audioCtx || !musicOn) return;
 
-    const melody = musicIntensity === 'game' ? GAME_MELODY : MENU_MELODY;
-    const semitone = melody[musicNoteIndex % melody.length];
-    const now = audioCtx.currentTime;
-
-    playMusicNote(semitoneToFreq(semitone), now, NOTE_DURATION, 'triangle');
-    // A quieter octave-up layer on game music adds a bit more energy
-    if (musicIntensity === 'game') {
-        playMusicNote(semitoneToFreq(semitone + 12), now, NOTE_DURATION, 'square');
+    const sequence = musicIntensity === 'game' ? GAME_PULSES : MENU_PULSES;
+    const semitone = sequence[pulseIndex % sequence.length];
+    if (semitone !== null) {
+        playPulse(semitone, audioCtx.currentTime);
     }
 
-    musicNoteIndex++;
-    musicSchedulerTimer = setTimeout(scheduleNextMusicStep, NOTE_DURATION * 1000);
+    pulseIndex++;
+    const stepSeconds = musicIntensity === 'game' ? PULSE_STEP_SECONDS * 0.75 : PULSE_STEP_SECONDS;
+    pulseSchedulerTimer = setTimeout(scheduleNextPulse, stepSeconds * 1000);
 }
 
 function startMusic() {
     if (!musicOn) return;
     ensureAudioContext();
     if (audioCtx.state === 'suspended') audioCtx.resume();
-    if (musicSchedulerTimer) return; // already running
-    musicNoteIndex = 0;
-    scheduleNextMusicStep();
+    musicGainNode.gain.cancelScheduledValues(audioCtx.currentTime);
+    musicGainNode.gain.linearRampToValueAtTime(musicVolume, audioCtx.currentTime + 0.3);
+    if (pulseSchedulerTimer) return; // already running
+    pulseIndex = 0;
+    scheduleNextPulse();
 }
 
 function stopMusic() {
-    if (musicSchedulerTimer) {
-        clearTimeout(musicSchedulerTimer);
-        musicSchedulerTimer = null;
+    if (pulseSchedulerTimer) {
+        clearTimeout(pulseSchedulerTimer);
+        pulseSchedulerTimer = null;
+    }
+    // The drone/noise/LFO layer runs continuously once started rather
+    // than being recreated each time, so muting goes through the
+    // master gain node instead of trying to stop those nodes.
+    if (musicGainNode && audioCtx) {
+        musicGainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
     }
 }
 
 function setMusicIntensity(intensity) {
     musicIntensity = intensity;
+    if (musicNodes && audioCtx) {
+        // Game intensity opens the drone filter up a bit for a more
+        // alert/agitated tone; menu stays duller and calmer.
+        const targetCutoff = intensity === 'game' ? 340 : 220;
+        musicNodes.droneFilter.frequency.linearRampToValueAtTime(
+            targetCutoff, audioCtx.currentTime + 2
+        );
+    }
 }
 
 function setMusicVolume(vol) {
     musicVolume = vol;
-    if (musicGainNode) musicGainNode.gain.value = vol;
+    if (musicGainNode && musicOn) {
+        musicGainNode.gain.cancelScheduledValues(audioCtx.currentTime);
+        musicGainNode.gain.value = vol;
+    }
 }
 
 // Browsers block audio until a user gesture; start music on first
@@ -1532,9 +1691,53 @@ function syncDevConsoleFields() {
     godBtn.textContent = godMode ? 'ON' : 'OFF';
 
     const noActiveRun = !gameInterval;
-    document.querySelectorAll('.dev-apply-btn, #dev-spawn-enemy, #dev-spawn-boss, #dev-give-all')
+    document.querySelectorAll('.dev-apply-btn, #dev-spawn-enemy, #dev-spawn-boss, #dev-give-all, .dev-perk-action-btn')
         .forEach(btn => { btn.disabled = noActiveRun; btn.style.opacity = noActiveRun ? 0.4 : 1; });
+
+    populateDevPerkList();
 }
+
+// Builds the perk picker checklist from the same upgradesPool used by
+// the real level-up screen, so it can never drift out of sync with
+// whatever perks actually exist.
+function populateDevPerkList() {
+    const list = document.getElementById('dev-perk-list');
+    list.innerHTML = '';
+
+    upgradesPool.forEach(upgrade => {
+        const removable = !NON_REMOVABLE_PERKS.includes(upgrade.id);
+        const row = document.createElement('label');
+        row.className = 'dev-perk-row' + (removable ? '' : ' dev-perk-row-nonremovable');
+        row.innerHTML = `
+            <input type="checkbox" data-perk-id="${upgrade.id}">
+            <div class="dev-perk-row-text">
+                <div class="dev-perk-row-title">${upgrade.icon} ${upgrade.title}${removable ? '' : ' (one-time, not removable)'}</div>
+                <div class="dev-perk-row-desc">${upgrade.desc}</div>
+            </div>
+        `;
+        list.appendChild(row);
+    });
+}
+
+function getCheckedDevPerkIds() {
+    return Array.from(document.querySelectorAll('#dev-perk-list input[type="checkbox"]:checked'))
+        .map(cb => cb.dataset.perkId);
+}
+
+document.getElementById('dev-perks-apply').addEventListener('click', () => {
+    if (!gameInterval) return;
+    const ids = getCheckedDevPerkIds();
+    ids.forEach(id => applyPerkEffect(id));
+    updateHUD();
+});
+
+document.getElementById('dev-perks-remove').addEventListener('click', () => {
+    if (!gameInterval) return;
+    const ids = getCheckedDevPerkIds();
+    ids.forEach(id => {
+        if (!NON_REMOVABLE_PERKS.includes(id)) removePerkEffect(id);
+    });
+});
 
 document.getElementById('dev-close-btn').addEventListener('click', () => {
     devConsole.classList.add('hidden');
