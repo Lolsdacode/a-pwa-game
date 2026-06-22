@@ -104,6 +104,19 @@ body {
     transition: width 0.2s;
 }
 
+#hp-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+#hp-icons-canvas {
+    flex: none !important;
+    width: 160px;
+    height: 28px;
+    background: transparent !important;
+}
+
 canvas {
     flex: 1;
     background-color: var(--bg-canvas);
@@ -438,5 +451,22 @@ h2 {
 
 #dev-godmode-btn.is-on {
     background: #0f0;
+    color: #000;
+}
+
+.dev-danger-btn {
+    width: 100%;
+    background: #330000;
+    border: 1px solid #f33;
+    color: #f66;
+    padding: 10px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    margin-top: 6px;
+}
+
+.dev-danger-btn:hover {
+    background: #f33;
     color: #000;
 }

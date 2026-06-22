@@ -76,6 +76,9 @@
                     <button id="dev-spawn-boss">+ Boss</button>
                     <button id="dev-give-all">Give All Perks</button>
                 </div>
+                <div class="dev-row">
+                    <button id="dev-hide-menu-btn" class="dev-danger-btn">🔒 Hide Dev Menu</button>
+                </div>
             </div>
         </div>
 
@@ -84,7 +87,7 @@
             <div>Score: <span id="score-val">0</span></div>
             <div>Level: <span id="level-val">1</span></div>
             <div id="xp-bar-container"><div id="xp-bar"></div></div>
-            <div>HP: <span id="hp-val">3</span></div>
+            <div id="hp-row">HP: <canvas id="hp-icons-canvas" width="160" height="28"></canvas></div>
         </div>
 
         <canvas id="gameCanvas" class="hidden"></canvas>

@@ -449,12 +449,68 @@ function applyUpgrade(id) {
     isPaused = false;
 }
 
+// HUD icon canvas (HP hearts + shield count), drawn instead of emoji so
+// they render identically everywhere instead of depending on OS emoji fonts.
+const hpIconsCanvas = document.getElementById('hp-icons-canvas');
+const hpIconsCtx = hpIconsCanvas.getContext('2d');
+
+function drawHexHeartIcon(ctx, x, y, scale, color, glow) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    if (glow) { ctx.shadowBlur = 8; ctx.shadowColor = color; }
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(0, -12); ctx.lineTo(10, -6); ctx.lineTo(10, 6);
+    ctx.lineTo(0, 12); ctx.lineTo(-10, 6); ctx.lineTo(-10, -6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.beginPath();
+    ctx.arc(0, -1, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+}
+
+function drawShieldIconHud(ctx, x, y, scale, color, glow) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    if (glow) { ctx.shadowBlur = 8; ctx.shadowColor = color; }
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(0, -10); ctx.lineTo(9, -6); ctx.lineTo(9, 4);
+    ctx.lineTo(0, 12); ctx.lineTo(-9, 4); ctx.lineTo(-9, -6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.beginPath();
+    ctx.moveTo(0, -7); ctx.lineTo(6, -4); ctx.lineTo(0, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+}
+
+function drawHpIcons() {
+    hpIconsCtx.clearRect(0, 0, hpIconsCanvas.width, hpIconsCanvas.height);
+    const pal = getPalette();
+    const heartColor = pal.useGlow ? '#ff3366' : '#d6004f';
+    const shieldColor = pal.useGlow ? '#00ffcc' : '#00897b';
+
+    for (let i = 0; i < hp; i++) {
+        drawHexHeartIcon(hpIconsCtx, 14 + i * 24, 14, 0.85, heartColor, pal.useGlow);
+    }
+    for (let i = 0; i < shieldCount; i++) {
+        drawShieldIconHud(hpIconsCtx, 14 + hp * 24 + i * 24, 14, 0.85, shieldColor, pal.useGlow);
+    }
+}
+
 function updateHUD() {
     document.getElementById('score-val').textContent = score;
     document.getElementById('level-val').textContent = level;
-    document.getElementById('hp-val').innerHTML = 
-        `<span style="color: #ff3366">${"❤️".repeat(hp)}</span>` + 
-        (shieldCount > 0 ? ` <span style="color: #00ffcc">${"🛡️".repeat(shieldCount)}</span>` : "");
+    drawHpIcons();
         
     const xpPercent = (xp / xpNeeded) * 100;
     document.getElementById('xp-bar').style.width = `${xpPercent}%`;
@@ -684,11 +740,15 @@ function draw() {
 }
 
 window.addEventListener('keydown', e => {
-    switch (e.key) {
-        case 'ArrowUp':    case 'w': if (lastValidDirection.y !== 1)  nextDirection = { x: 0, y: -1 }; break;
-        case 'ArrowDown':  case 's': if (lastValidDirection.y !== -1) nextDirection = { x: 0, y: 1 };  break;
-        case 'ArrowLeft':  case 'a': if (lastValidDirection.x !== 1)  nextDirection = { x: -1, y: 0 }; break;
-        case 'ArrowRight': case 'd': if (lastValidDirection.x !== -1) nextDirection = { x: 1, y: 0 };  break;
+    // Ignore movement keys while any overlay/modal is open, so input
+    // can't get "stuck" interacting with whatever's behind a panel.
+    if (isPaused) return;
+
+    switch (e.key.toLowerCase()) {
+        case 'arrowup':    case 'w': if (lastValidDirection.y !== 1)  nextDirection = { x: 0, y: -1 }; break;
+        case 'arrowdown':  case 's': if (lastValidDirection.y !== -1) nextDirection = { x: 0, y: 1 };  break;
+        case 'arrowleft':  case 'a': if (lastValidDirection.x !== 1)  nextDirection = { x: -1, y: 0 }; break;
+        case 'arrowright': case 'd': if (lastValidDirection.x !== -1) nextDirection = { x: 1, y: 0 };  break;
     }
 });
 
@@ -746,7 +806,8 @@ bindDpadButton('btn-left', -1, 0);
 bindDpadButton('btn-right', 1, 0);
 
 // --- Restart / Menu buttons ---
-document.getElementById('restart-btn').addEventListener('click', () => {
+document.getElementById('restart-btn').addEventListener('click', (e) => {
+    e.target.blur();
     initGame();
 });
 
@@ -754,7 +815,8 @@ document.getElementById('menu-btn-gameover').addEventListener('click', () => {
     returnToMainMenu();
 });
 
-document.getElementById('start-btn').addEventListener('click', () => {
+document.getElementById('start-btn').addEventListener('click', (e) => {
+    e.target.blur();
     initGame();
 });
 
@@ -781,9 +843,15 @@ function closePauseMenu() {
     pauseScreen.classList.add('hidden');
 }
 
-document.getElementById('pause-btn').addEventListener('click', openPauseMenu);
+document.getElementById('pause-btn').addEventListener('click', (e) => {
+    e.target.blur();
+    openPauseMenu();
+});
 
-document.getElementById('resume-btn').addEventListener('click', closePauseMenu);
+document.getElementById('resume-btn').addEventListener('click', (e) => {
+    e.target.blur();
+    closePauseMenu();
+});
 
 document.getElementById('pause-options-btn').addEventListener('click', () => {
     pauseScreen.classList.add('hidden');
@@ -850,6 +918,9 @@ function applyTheme() {
     themeToggleBtn.classList.toggle('is-on', lightMode);
     themeToggleBtn.textContent = lightMode ? 'Light' : 'Dark';
     themeToggleLabel.textContent = lightMode ? 'Light Mode' : 'Dark Mode';
+    if (typeof drawHpIcons === 'function' && typeof hp !== 'undefined' && gameInterval) {
+        drawHpIcons();
+    }
 }
 
 function applySoundUI() {
@@ -904,13 +975,29 @@ const LONG_PRESS_MS = 1200;
 let devUnlocked = loadSetting('devUnlocked', false);
 let longPressTimer = null;
 
+function showUnlockedUI() {
+    devUnlockHint.classList.remove('hidden');
+    document.getElementById('dev-open-btn').classList.remove('hidden');
+}
+
+function hideUnlockedUI() {
+    devUnlockHint.classList.add('hidden');
+    document.getElementById('dev-open-btn').classList.add('hidden');
+}
+
 function unlockDevConsole() {
     if (devUnlocked) return;
     devUnlocked = true;
     saveSetting('devUnlocked', true);
-    devUnlockHint.classList.remove('hidden');
-    document.getElementById('dev-open-btn').classList.remove('hidden');
+    showUnlockedUI();
     themeOptionRow.classList.remove('long-pressing');
+}
+
+function lockDevConsole() {
+    devUnlocked = false;
+    saveSetting('devUnlocked', false);
+    hideUnlockedUI();
+    devConsole.classList.add('hidden');
 }
 
 function startLongPress(e) {
@@ -948,8 +1035,7 @@ themeOptionRow.addEventListener('mousedown', (e) => {
 });
 
 if (devUnlocked) {
-    devUnlockHint.classList.remove('hidden');
-    document.getElementById('dev-open-btn').classList.remove('hidden');
+    showUnlockedUI();
 }
 
 document.getElementById('dev-open-btn').addEventListener('click', () => {
@@ -982,6 +1068,10 @@ function syncDevConsoleFields() {
 
 document.getElementById('dev-close-btn').addEventListener('click', () => {
     devConsole.classList.add('hidden');
+});
+
+document.getElementById('dev-hide-menu-btn').addEventListener('click', () => {
+    lockDevConsole();
 });
 
 document.getElementById('dev-speed').addEventListener('input', (e) => {
