@@ -234,19 +234,73 @@ h2 {
     position: absolute;
     top: 0; left: 0; width: 100%; height: 100%;
     display: flex;
-    flex-direction: column;
     justify-content: center;
     align-items: center;
-    gap: 40px;
     z-index: 20;
-    background: var(--bg-container);
+    background: #0a0a14;
+    overflow: hidden;
+}
+
+#menu-bg-canvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+#menu-vignette {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: radial-gradient(ellipse at center, rgba(10,10,20,0.35) 0%, rgba(8,8,16,0.85) 100%);
+    z-index: 1;
+}
+
+#menu-content {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 36px;
+    padding: 36px 28px;
+    background: rgba(20, 20, 38, 0.55);
+    border: 1px solid rgba(0, 255, 204, 0.25);
+    border-radius: 16px;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    box-shadow: 0 0 40px rgba(0, 255, 204, 0.08), inset 0 0 60px rgba(0,0,0,0.3);
+    width: 82%;
+    max-width: 340px;
 }
 
 #game-title {
+    font-family: 'Audiowide', 'Arial Black', sans-serif;
     font-size: 38px;
     letter-spacing: 2px;
     color: var(--accent-bright);
     text-shadow: 0 0 12px rgba(0,255,204,0.5);
+    position: relative;
+    z-index: 2;
+}
+
+#game-subtitle {
+    font-family: 'Share Tech Mono', 'Courier New', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--pink);
+    text-shadow: 0 0 8px rgba(255,0,127,0.6);
+    margin-top: 10px;
+    animation: flicker 3s infinite;
+    position: relative;
+    z-index: 2;
+}
+
+@keyframes flicker {
+    0%, 92%, 100% { opacity: 1; }
+    93% { opacity: 0.3; }
+    95% { opacity: 1; }
+    96% { opacity: 0.5; }
+    97% { opacity: 1; }
 }
 
 .title-accent {
@@ -281,6 +335,30 @@ h2 {
     border-color: var(--pink);
     color: #fff;
     font-weight: bold;
+}
+
+/* Main menu buttons stay on the dark/neon lab palette regardless of the
+   light/dark mode setting, since this is art-directed title-screen
+   chrome rather than themed in-game UI. */
+#menu-content .menu-btn {
+    background: rgba(0, 255, 204, 0.08);
+    color: #d8fff5;
+    border-color: rgba(0, 255, 204, 0.5);
+}
+
+#menu-content .menu-btn:hover {
+    background: rgba(0, 255, 204, 0.18);
+}
+
+#menu-content .menu-btn.primary {
+    background: rgba(255, 0, 127, 0.75);
+    border-color: #ff007f;
+    color: #fff;
+    box-shadow: 0 0 16px rgba(255, 0, 127, 0.5);
+}
+
+#menu-content .menu-btn.primary:hover {
+    background: #ff007f;
 }
 
 #menu-btn-gameover {

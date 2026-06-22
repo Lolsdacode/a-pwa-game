@@ -20,6 +20,7 @@ let bosses = [];
 let score, level, xp, xpNeeded, hp;
 let gameInterval, isPaused;
 let progressTimer = 0; 
+let lastFrameTime = 0;
 
 // Upgrades
 let attackSpeed = 0; 
@@ -106,6 +107,7 @@ function getPalette() {
 }
 
 function initGame() {
+    stopMenuDemo();
     document.getElementById('main-menu-screen').classList.add('hidden');
     document.getElementById('options-screen').classList.add('hidden');
     document.getElementById('game-over-screen').classList.add('hidden');
@@ -144,9 +146,9 @@ function initGame() {
     refillFood();
     updateHUD();
     
-    if(gameInterval) clearInterval(gameInterval);
-    // 60fps loop for high-precision movement animation
-    gameInterval = setInterval(updateTick, 1000 / 60); 
+    if(gameInterval) cancelAnimationFrame(gameInterval);
+    lastFrameTime = performance.now();
+    gameInterval = requestAnimationFrame(gameLoop);
 }
 
 function resizeCanvas() {
@@ -211,12 +213,27 @@ function spawnBoss() {
     createExplosion(gridCount/2, gridCount/2, '#ff0055', 30);
 }
 
-function updateTick() {
+function gameLoop(now) {
+    let deltaSeconds = (now - lastFrameTime) / 1000;
+    lastFrameTime = now;
+    // Clamp delta so a dropped/backgrounded tab doesn't cause one huge
+    // catch-up jump (e.g. snake teleporting several cells at once).
+    deltaSeconds = Math.min(deltaSeconds, 1 / 15);
+
+    updateTick(deltaSeconds);
+    gameInterval = requestAnimationFrame(gameLoop);
+}
+
+function updateTick(deltaSeconds) {
     if (isPaused) return;
 
     let head = snake[0];
     let distanceToTarget = Math.hypot(head.targetX - head.x, head.targetY - head.y);
-    let moveStepSpeed = getCurrentMoveSpeed();
+    // Exponential-decay interpolation, expressed per-second instead of
+    // per-tick, so movement speed is identical regardless of the
+    // device's actual frame rate (a slow phone no longer plays slower).
+    let speedPerSecond = Math.min(getCurrentMoveSpeed(), 0.97);
+    let moveStepSpeed = 1 - Math.pow(1 - speedPerSecond, deltaSeconds * 60);
 
     if (distanceToTarget > 0.01) {
         // Linearly slide each body segment smoothly toward its grid target location
@@ -517,14 +534,14 @@ function updateHUD() {
 }
 
 function gameOver() {
-    if(gameInterval) clearInterval(gameInterval);
+    if(gameInterval) cancelAnimationFrame(gameInterval);
     document.getElementById('pause-screen').classList.add('hidden');
     document.getElementById('final-lvl').textContent = level;
     document.getElementById('game-over-screen').classList.remove('hidden');
 }
 
 function returnToMainMenu() {
-    if (gameInterval) clearInterval(gameInterval);
+    if (gameInterval) cancelAnimationFrame(gameInterval);
     isPaused = false;
     document.getElementById('game-over-screen').classList.add('hidden');
     document.getElementById('upgrade-screen').classList.add('hidden');
@@ -533,6 +550,7 @@ function returnToMainMenu() {
     canvas.classList.add('hidden');
     document.getElementById('touch-controls').classList.add('hidden');
     document.getElementById('main-menu-screen').classList.remove('hidden');
+    startMenuDemo();
 }
 
 function draw() {
@@ -820,7 +838,168 @@ document.getElementById('start-btn').addEventListener('click', (e) => {
     initGame();
 });
 
+// =====================================================================
+// Main Menu Background: decorative self-playing demo snake
+// Entirely separate from real game state - just a looping visual.
+// =====================================================================
+
+const menuCanvas = document.getElementById('menu-bg-canvas');
+const menuCtx = menuCanvas.getContext('2d');
+const DEMO_GRID = 14;
+let demoTileSize = 20;
+let demoSnake = [];
+let demoDirection = { x: 1, y: 0 };
+let demoFood = { x: 5, y: 5 };
+let demoStepTimer = 0;
+let demoRafId = null;
+let demoLastTime = 0;
+
+function resizeMenuCanvas() {
+    if (!menuCanvas) return;
+    const rect = menuCanvas.parentElement.getBoundingClientRect();
+    menuCanvas.width = rect.width;
+    menuCanvas.height = rect.height;
+    demoTileSize = Math.max(rect.width, rect.height) / DEMO_GRID;
+}
+
+function resetDemoSnake() {
+    demoSnake = [
+        { x: 4, y: 7 }, { x: 3, y: 7 }, { x: 2, y: 7 }
+    ];
+    demoDirection = { x: 1, y: 0 };
+    placeDemoFood();
+}
+
+function placeDemoFood() {
+    let pos;
+    do {
+        pos = {
+            x: Math.floor(Math.random() * DEMO_GRID),
+            y: Math.floor(Math.random() * DEMO_GRID)
+        };
+    } while (demoSnake.some(s => s.x === pos.x && s.y === pos.y));
+    demoFood = pos;
+}
+
+function stepDemoSnake() {
+    const head = demoSnake[0];
+
+    // Simple greedy pathing toward the food, picking the axis with the
+    // larger gap first; never reverses directly into itself.
+    const dx = demoFood.x - head.x;
+    const dy = demoFood.y - head.y;
+    let candidates = [];
+    if (Math.abs(dx) >= Math.abs(dy)) {
+        if (dx !== 0) candidates.push({ x: Math.sign(dx), y: 0 });
+        if (dy !== 0) candidates.push({ x: 0, y: Math.sign(dy) });
+    } else {
+        if (dy !== 0) candidates.push({ x: 0, y: Math.sign(dy) });
+        if (dx !== 0) candidates.push({ x: Math.sign(dx), y: 0 });
+    }
+    // Fallback: keep current direction, then try any non-reversing turn
+    candidates.push(demoDirection, { x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 });
+
+    const isReverse = (d) => d.x === -demoDirection.x && d.y === -demoDirection.y;
+    const wouldHitSelf = (d) => {
+        const nx = (head.x + d.x + DEMO_GRID) % DEMO_GRID;
+        const ny = (head.y + d.y + DEMO_GRID) % DEMO_GRID;
+        return demoSnake.some(s => s.x === nx && s.y === ny);
+    };
+
+    let chosen = candidates.find(d => (d.x !== 0 || d.y !== 0) && !isReverse(d) && !wouldHitSelf(d));
+    if (!chosen) chosen = demoDirection; // trapped - just keep going, it's only decorative
+
+    demoDirection = chosen;
+    const newHead = {
+        x: (head.x + demoDirection.x + DEMO_GRID) % DEMO_GRID,
+        y: (head.y + demoDirection.y + DEMO_GRID) % DEMO_GRID
+    };
+    demoSnake.unshift(newHead);
+
+    if (newHead.x === demoFood.x && newHead.y === demoFood.y) {
+        placeDemoFood();
+        if (demoSnake.length > 14) demoSnake.pop(); // cap length so it doesn't fill the whole board
+    } else {
+        demoSnake.pop();
+    }
+}
+
+function drawDemoSnake() {
+    menuCtx.clearRect(0, 0, menuCanvas.width, menuCanvas.height);
+    const pal = PALETTE.dark; // menu background always uses the dark neon look
+
+    // food
+    const fx = demoFood.x * demoTileSize + demoTileSize / 2;
+    const fy = demoFood.y * demoTileSize + demoTileSize / 2;
+    menuCtx.save();
+    menuCtx.shadowBlur = 14;
+    menuCtx.shadowColor = pal.foodGlow;
+    let grad = menuCtx.createRadialGradient(fx, fy, 1, fx, fy, demoTileSize / 2.4);
+    grad.addColorStop(0, pal.foodCore);
+    grad.addColorStop(0.4, pal.food);
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    menuCtx.fillStyle = grad;
+    menuCtx.beginPath();
+    menuCtx.arc(fx, fy, demoTileSize / 2.4, 0, Math.PI * 2);
+    menuCtx.fill();
+    menuCtx.restore();
+
+    // body + head
+    for (let i = demoSnake.length - 1; i >= 0; i--) {
+        const part = demoSnake[i];
+        const rx = part.x * demoTileSize + demoTileSize / 2;
+        const ry = part.y * demoTileSize + demoTileSize / 2;
+        menuCtx.save();
+        if (i === 0) {
+            menuCtx.shadowBlur = 16;
+            menuCtx.shadowColor = pal.snakeHead;
+            menuCtx.fillStyle = pal.snakeHead;
+            menuCtx.beginPath();
+            menuCtx.arc(rx, ry, demoTileSize * 0.46, 0, Math.PI * 2);
+            menuCtx.fill();
+        } else {
+            const progress = i / demoSnake.length;
+            const size = (demoTileSize * 0.4) * (1 - progress * 0.5);
+            menuCtx.fillStyle = (i % 2 === 0) ? pal.snakeBodyA : pal.snakeBodyB;
+            menuCtx.beginPath();
+            menuCtx.arc(rx, ry, size, 0, Math.PI * 2);
+            menuCtx.fill();
+        }
+        menuCtx.restore();
+    }
+}
+
+function demoLoop(now) {
+    if (!demoLastTime) demoLastTime = now;
+    const delta = now - demoLastTime;
+    demoLastTime = now;
+    demoStepTimer += delta;
+
+    if (demoStepTimer > 220) { // demo speed: one grid step ~every 220ms
+        demoStepTimer = 0;
+        stepDemoSnake();
+    }
+    drawDemoSnake();
+    demoRafId = requestAnimationFrame(demoLoop);
+}
+
+function startMenuDemo() {
+    if (demoRafId) return; // already running
+    resizeMenuCanvas();
+    resetDemoSnake();
+    demoLastTime = 0;
+    demoRafId = requestAnimationFrame(demoLoop);
+}
+
+function stopMenuDemo() {
+    if (demoRafId) {
+        cancelAnimationFrame(demoRafId);
+        demoRafId = null;
+    }
+}
+
 window.addEventListener('resize', resizeCanvas);
+window.addEventListener('resize', resizeMenuCanvas);
 
 // =====================================================================
 // Pause Menu
@@ -1130,4 +1309,5 @@ window.onload = () => {
     resizeCanvas();
     // Game does not auto-start anymore; the main menu is shown first
     // and initGame() runs only when the player presses Start.
+    startMenuDemo();
 };
