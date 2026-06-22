@@ -29,6 +29,12 @@ let hasSpikes = false;
 let maxFoodCount = 1; 
 let lastShotTime = 0;
 let speedBonus = 0; // added on top of base move speed by the Speed Boost perk
+let scoreMultiplier = 1;
+let hasSecondWind = false;
+let secondWindUsed = false;
+let enemySpawnReduction = 0; // subtracted from the spawn-chance roll
+let hasSplashDamage = false;
+let maxHpCap = 5;
 
 // Base glide speed (how fast the snake interpolates between grid cells).
 // This is multiplied up slightly per level so the game naturally
@@ -42,18 +48,28 @@ let devSpeedMultiplier = 1;
 let godMode = false;
 
 const upgradesPool = [
-    { id: 'hp', title: '❤️ Bio-Repair', desc: 'Heals 1 lost heart (Max 5)' },
-    { id: 'fireball', title: '🔥 Plasma Blaster', desc: 'Auto-fires projectiles rapidly at close targets' },
-    { id: 'shield', title: '🛡️ Kinetic Shield', desc: 'Absorbs one collision with walls or targets' },
-    { id: 'spikes', title: '⚡ Nova Spikes', desc: 'Eaten food triggers an explosion killing near enemies' },
-    { id: 'more_food', title: '🍎 Scout Radar', desc: 'Permanently increases the active food count on the field' },
-    { id: 'speed', title: '💨 Adrenal Surge', desc: 'Permanently increases movement speed' }
+    { id: 'hp', title: 'Bio-Repair', icon: '❤️', desc: 'Heals 1 lost heart (Max HP)', rarity: 'common' },
+    { id: 'fireball', title: 'Plasma Blaster', icon: '🔥', desc: 'Auto-fires projectiles rapidly at close targets', rarity: 'common' },
+    { id: 'shield', title: 'Kinetic Shield', icon: '🛡️', desc: 'Absorbs one collision with walls or targets', rarity: 'common' },
+    { id: 'spikes', title: 'Nova Spikes', icon: '⚡', desc: 'Eaten food triggers an explosion killing near enemies', rarity: 'rare' },
+    { id: 'more_food', title: 'Scout Radar', icon: '🍎', desc: 'Permanently increases the active food count on the field', rarity: 'common' },
+    { id: 'speed', title: 'Adrenal Surge', icon: '💨', desc: 'Permanently increases movement speed', rarity: 'common' },
+    { id: 'score_mult', title: 'Precision Core', icon: '🎯', desc: 'Permanently increases score gained from all sources by 25%', rarity: 'rare' },
+    { id: 'quick_learner', title: 'Quick Learner', icon: '🧠', desc: 'Immediately reduces XP needed to reach the next level', rarity: 'common' },
+    { id: 'second_wind', title: 'Second Wind', icon: '💚', desc: 'Cheats death once, reviving with 2 HP instead of dying', rarity: 'legendary' },
+    { id: 'phase_shift', title: 'Phase Shift', icon: '🌀', desc: 'Permanently reduces how often new enemies spawn', rarity: 'rare' },
+    { id: 'overcharge', title: 'Overcharge', icon: '☄️', desc: 'Projectiles explode on impact, damaging nearby enemies too', rarity: 'legendary' },
+    { id: 'vital_surge', title: 'Vital Surge', icon: '🩹', desc: 'Raises max HP cap and heals 1 heart', rarity: 'rare' }
 ];
 
 function getCurrentMoveSpeed() {
     let speed = BASE_MOVE_SPEED + (level - 1) * PER_LEVEL_SPEED_GAIN + speedBonus;
     speed = Math.min(speed, MAX_MOVE_SPEED);
     return speed * devSpeedMultiplier;
+}
+
+function addScore(points) {
+    score += Math.round(points * scoreMultiplier);
 }
 
 // Canvas color palettes. Dark mode leans on neon glow (shadowBlur); light
@@ -108,6 +124,7 @@ function getPalette() {
 
 function initGame() {
     stopMenuDemo();
+    setMusicIntensity('game');
     document.getElementById('main-menu-screen').classList.add('hidden');
     document.getElementById('options-screen').classList.add('hidden');
     document.getElementById('game-over-screen').classList.add('hidden');
@@ -140,6 +157,8 @@ function initGame() {
     score = 0; level = 1; xp = 0; xpNeeded = 3; hp = 3;
     attackSpeed = 0; shieldCount = 0; hasSpikes = false; maxFoodCount = 1;
     speedBonus = 0;
+    scoreMultiplier = 1; hasSecondWind = false; secondWindUsed = false;
+    enemySpawnReduction = 0; hasSplashDamage = false; maxHpCap = 5;
     isPaused = false;
     progressTimer = 0;
     
@@ -197,7 +216,7 @@ function refillFood() {
 }
 
 function spawnEnemy() {
-    if (bosses.length === 0 && Math.random() > 0.3) {
+    if (bosses.length === 0 && Math.random() > (0.3 + enemySpawnReduction)) {
         enemies.push(getSafeGridPosition());
     }
 }
@@ -310,7 +329,7 @@ function advanceGridStep() {
     let eatenFoodIdx = foods.findIndex(f => f.x === nextX && f.y === nextY);
     if (eatenFoodIdx !== -1) {
         foods.splice(eatenFoodIdx, 1);
-        score += 10;
+        addScore(10);
         xp++;
         createExplosion(nextX, nextY, '#ff007f', 15);
         
@@ -360,13 +379,13 @@ function checkCombatCollisions(headGridX, headGridY) {
                 projectiles.splice(pIdx, 1);
                 boss.hp--;
                 boss.flashFrames = 4; 
-                score += 15;
+                addScore(15);
                 createExplosion(boss.x, boss.y, '#ff0055', 8);
 
                 if (boss.hp <= 0) {
                     createExplosion(boss.x, boss.y, '#ffea00', 35);
                     bosses.splice(bIdx, 1);
-                    score += 200;
+                    addScore(200);
                     xp += 3; 
                     if (xp >= xpNeeded) triggerLevelUp();
                 }
@@ -383,7 +402,20 @@ function checkCombatCollisions(headGridX, headGridY) {
                 createExplosion(enemy.x, enemy.y, '#a124db', 10);
                 enemies.splice(eIdx, 1);
                 projectiles.splice(pIdx, 1);
-                score += 5;
+                addScore(5);
+
+                if (hasSplashDamage) {
+                    // Overcharge: nearby enemies within a small radius also die
+                    enemies = enemies.filter(other => {
+                        let dist = Math.abs(other.x - pX) + Math.abs(other.y - pY);
+                        if (dist > 0 && dist <= 1) {
+                            createExplosion(other.x, other.y, '#ff8800', 8);
+                            addScore(5);
+                            return false;
+                        }
+                        return true;
+                    });
+                }
             }
         });
     });
@@ -420,7 +452,7 @@ function triggerSpikes(gx, gy) {
     enemies = enemies.filter(enemy => {
         let dist = Math.abs(enemy.x - gx) + Math.abs(enemy.y - gy);
         if (dist <= 2) {
-            score += 5;
+            addScore(5);
             createExplosion(enemy.x, enemy.y, '#a124db', 8);
             return false;
         }
@@ -438,6 +470,8 @@ function triggerLevelUp() {
         spawnBoss();
     }
 
+    document.getElementById('upgrade-level-num').textContent = level;
+
     const container = document.getElementById('upgrade-options');
     container.innerHTML = '';
     
@@ -445,8 +479,15 @@ function triggerLevelUp() {
     
     shuffled.forEach(upgrade => {
         const card = document.createElement('div');
-        card.className = 'upgrade-card';
-        card.innerHTML = `<div class="upgrade-title">${upgrade.title}</div><div style="font-size:13px; margin-top:4px; opacity:0.9;">${upgrade.desc}</div>`;
+        card.className = `upgrade-card rarity-${upgrade.rarity}`;
+        card.innerHTML = `
+            <div class="upgrade-icon-badge">${upgrade.icon}</div>
+            <div class="upgrade-card-body">
+                <div class="upgrade-rarity-tag">${upgrade.rarity}</div>
+                <div class="upgrade-title">${upgrade.title}</div>
+                <div class="upgrade-desc">${upgrade.desc}</div>
+            </div>
+        `;
         card.onclick = () => applyUpgrade(upgrade.id);
         container.appendChild(card);
     });
@@ -455,12 +496,18 @@ function triggerLevelUp() {
 }
 
 function applyUpgrade(id) {
-    if (id === 'hp') hp = Math.min(hp + 1, 5);
+    if (id === 'hp') hp = Math.min(hp + 1, maxHpCap);
     if (id === 'fireball') attackSpeed += 1.5; 
     if (id === 'shield') shieldCount++;
     if (id === 'spikes') hasSpikes = true;
     if (id === 'more_food') { maxFoodCount++; refillFood(); }
     if (id === 'speed') speedBonus += 0.05;
+    if (id === 'score_mult') scoreMultiplier += 0.25;
+    if (id === 'quick_learner') xpNeeded = Math.max(1, Math.floor(xpNeeded * 0.7));
+    if (id === 'second_wind') hasSecondWind = true;
+    if (id === 'phase_shift') enemySpawnReduction = Math.min(enemySpawnReduction + 0.15, 0.6);
+    if (id === 'overcharge') hasSplashDamage = true;
+    if (id === 'vital_surge') { maxHpCap = Math.min(maxHpCap + 1, 9); hp = Math.min(hp + 1, maxHpCap); }
     
     document.getElementById('upgrade-screen').classList.add('hidden');
     isPaused = false;
@@ -516,11 +563,16 @@ function drawHpIcons() {
     const heartColor = pal.useGlow ? '#ff3366' : '#d6004f';
     const shieldColor = pal.useGlow ? '#00ffcc' : '#00897b';
 
+    const totalIcons = hp + shieldCount;
+    // Shrink spacing/scale once icons would otherwise overflow the canvas
+    const spacing = totalIcons > 10 ? (hpIconsCanvas.width - 16) / totalIcons : 24;
+    const scale = totalIcons > 10 ? 0.6 : 0.85;
+
     for (let i = 0; i < hp; i++) {
-        drawHexHeartIcon(hpIconsCtx, 14 + i * 24, 14, 0.85, heartColor, pal.useGlow);
+        drawHexHeartIcon(hpIconsCtx, 14 + i * spacing, 14, scale, heartColor, pal.useGlow);
     }
     for (let i = 0; i < shieldCount; i++) {
-        drawShieldIconHud(hpIconsCtx, 14 + hp * 24 + i * 24, 14, 0.85, shieldColor, pal.useGlow);
+        drawShieldIconHud(hpIconsCtx, 14 + (hp + i) * spacing, 14, scale, shieldColor, pal.useGlow);
     }
 }
 
@@ -534,15 +586,25 @@ function updateHUD() {
 }
 
 function gameOver() {
+    if (hasSecondWind && !secondWindUsed) {
+        secondWindUsed = true;
+        hp = 2;
+        shieldCount = Math.max(shieldCount, 1); // brief grace period so they don't insta-die again
+        createExplosion(snake[0].targetX, snake[0].targetY, '#33ff99', 25);
+        updateHUD();
+        return;
+    }
     if(gameInterval) cancelAnimationFrame(gameInterval);
     document.getElementById('pause-screen').classList.add('hidden');
     document.getElementById('final-lvl').textContent = level;
+    document.getElementById('final-score').textContent = score;
     document.getElementById('game-over-screen').classList.remove('hidden');
 }
 
 function returnToMainMenu() {
     if (gameInterval) cancelAnimationFrame(gameInterval);
     isPaused = false;
+    setMusicIntensity('menu');
     document.getElementById('game-over-screen').classList.add('hidden');
     document.getElementById('upgrade-screen').classList.add('hidden');
     document.getElementById('pause-screen').classList.add('hidden');
@@ -757,17 +819,49 @@ function draw() {
     });
 }
 
+// Configurable key bindings (Options > Controls). Defaults match the
+// original hardcoded behavior: WASD and arrow keys both always work
+// for their respective direction.
+const DEFAULT_KEYBINDS = {
+    up: ['arrowup', 'w'],
+    down: ['arrowdown', 's'],
+    left: ['arrowleft', 'a'],
+    right: ['arrowright', 'd']
+};
+let keybinds = loadKeybinds();
+
+function loadKeybinds() {
+    try {
+        const raw = localStorage.getItem('snakeRogue.keybinds');
+        if (!raw) return JSON.parse(JSON.stringify(DEFAULT_KEYBINDS));
+        const parsed = JSON.parse(raw);
+        // Merge with defaults so any missing/corrupt direction still works
+        return { ...JSON.parse(JSON.stringify(DEFAULT_KEYBINDS)), ...parsed };
+    } catch (e) {
+        return JSON.parse(JSON.stringify(DEFAULT_KEYBINDS));
+    }
+}
+
+function saveKeybinds() {
+    try {
+        localStorage.setItem('snakeRogue.keybinds', JSON.stringify(keybinds));
+    } catch (e) {
+        // localStorage unavailable - remap just won't persist
+    }
+}
+
 window.addEventListener('keydown', e => {
     // Ignore movement keys while any overlay/modal is open, so input
     // can't get "stuck" interacting with whatever's behind a panel.
-    if (isPaused) return;
+    // Also ignore while a controls-remap button is actively listening,
+    // so the key being captured doesn't simultaneously steer the snake.
+    if (isPaused || remapListenDirection) return;
 
-    switch (e.key.toLowerCase()) {
-        case 'arrowup':    case 'w': if (lastValidDirection.y !== 1)  nextDirection = { x: 0, y: -1 }; break;
-        case 'arrowdown':  case 's': if (lastValidDirection.y !== -1) nextDirection = { x: 0, y: 1 };  break;
-        case 'arrowleft':  case 'a': if (lastValidDirection.x !== 1)  nextDirection = { x: -1, y: 0 }; break;
-        case 'arrowright': case 'd': if (lastValidDirection.x !== -1) nextDirection = { x: 1, y: 0 };  break;
-    }
+    const key = e.key.toLowerCase();
+    if (keybinds.up.includes(key) && lastValidDirection.y !== 1) nextDirection = { x: 0, y: -1 };
+    else if (keybinds.down.includes(key) && lastValidDirection.y !== -1) nextDirection = { x: 0, y: 1 };
+    else if (keybinds.left.includes(key) && lastValidDirection.x !== 1) nextDirection = { x: -1, y: 0 };
+    else if (keybinds.right.includes(key) && lastValidDirection.x !== -1) nextDirection = { x: 1, y: 0 };
 });
 
 // Shared helper so swipe and D-pad buttons both respect the
@@ -1124,6 +1218,7 @@ function openOptions(returnTo) {
     optionsReturnTo = returnTo;
     document.getElementById(returnTo).classList.add('hidden');
     optionsScreen.classList.remove('hidden');
+    refreshRemapLabels();
 }
 
 function closeOptions() {
@@ -1141,6 +1236,202 @@ soundToggleBtn.addEventListener('click', () => {
     soundOn = !soundOn;
     saveSetting('soundOn', soundOn);
     applySoundUI();
+});
+
+// =====================================================================
+// Background Music (synthesized with Web Audio API - no audio files)
+// =====================================================================
+
+let musicOn = loadSetting('musicOn', true);
+let musicVolume = loadSetting('musicVolume', 0.5);
+let audioCtx = null;
+let musicGainNode = null;
+let musicSchedulerTimer = null;
+let musicNoteIndex = 0;
+let musicIntensity = 'menu'; // 'menu' | 'game'
+
+// Two short looping note sequences (semitone offsets from a root note),
+// using simple square/triangle oscillators for a lightweight chiptune
+// feel. Negative numbers are below the root note.
+const MENU_MELODY = [0, 3, 7, 10, 7, 3, 0, -2, 0, 3, 7, 12, 10, 7, 3, 0];
+const GAME_MELODY  = [0, 5, 7, 12, 10, 7, 5, 3, 0, 5, 9, 12, 14, 12, 9, 5];
+const ROOT_FREQ = 196; // G3 - low enough to sit in the background, not fight the SFX range
+const NOTE_DURATION = 0.18; // seconds per step
+
+function ensureAudioContext() {
+    if (audioCtx) return;
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    musicGainNode = audioCtx.createGain();
+    musicGainNode.gain.value = musicVolume;
+    musicGainNode.connect(audioCtx.destination);
+}
+
+function semitoneToFreq(semitones) {
+    return ROOT_FREQ * Math.pow(2, semitones / 12);
+}
+
+function playMusicNote(freq, startTime, duration, wave) {
+    const osc = audioCtx.createOscillator();
+    const noteGain = audioCtx.createGain();
+    osc.type = wave;
+    osc.frequency.value = freq;
+
+    // Quick fade in/out per note avoids clicky edges between notes
+    noteGain.gain.setValueAtTime(0, startTime);
+    noteGain.gain.linearRampToValueAtTime(0.5, startTime + 0.02);
+    noteGain.gain.linearRampToValueAtTime(0, startTime + duration * 0.95);
+
+    osc.connect(noteGain);
+    noteGain.connect(musicGainNode);
+    osc.start(startTime);
+    osc.stop(startTime + duration);
+}
+
+function scheduleNextMusicStep() {
+    if (!audioCtx || !musicOn) return;
+
+    const melody = musicIntensity === 'game' ? GAME_MELODY : MENU_MELODY;
+    const semitone = melody[musicNoteIndex % melody.length];
+    const now = audioCtx.currentTime;
+
+    playMusicNote(semitoneToFreq(semitone), now, NOTE_DURATION, 'triangle');
+    // A quieter octave-up layer on game music adds a bit more energy
+    if (musicIntensity === 'game') {
+        playMusicNote(semitoneToFreq(semitone + 12), now, NOTE_DURATION, 'square');
+    }
+
+    musicNoteIndex++;
+    musicSchedulerTimer = setTimeout(scheduleNextMusicStep, NOTE_DURATION * 1000);
+}
+
+function startMusic() {
+    if (!musicOn) return;
+    ensureAudioContext();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    if (musicSchedulerTimer) return; // already running
+    musicNoteIndex = 0;
+    scheduleNextMusicStep();
+}
+
+function stopMusic() {
+    if (musicSchedulerTimer) {
+        clearTimeout(musicSchedulerTimer);
+        musicSchedulerTimer = null;
+    }
+}
+
+function setMusicIntensity(intensity) {
+    musicIntensity = intensity;
+}
+
+function setMusicVolume(vol) {
+    musicVolume = vol;
+    if (musicGainNode) musicGainNode.gain.value = vol;
+}
+
+// Browsers block audio until a user gesture; start music on first
+// interaction anywhere on the page if it's supposed to be on.
+function unlockAudioOnFirstInteraction() {
+    if (musicOn) startMusic();
+}
+window.addEventListener('pointerdown', unlockAudioOnFirstInteraction, { once: true });
+window.addEventListener('keydown', unlockAudioOnFirstInteraction, { once: true });
+
+const musicToggleBtn = document.getElementById('music-toggle-btn');
+const musicVolumeSlider = document.getElementById('music-volume-slider');
+
+function applyMusicUI() {
+    musicToggleBtn.classList.toggle('is-on', musicOn);
+    musicToggleBtn.textContent = musicOn ? 'On' : 'Off';
+    musicVolumeSlider.value = Math.round(musicVolume * 100);
+}
+
+musicToggleBtn.addEventListener('click', () => {
+    musicOn = !musicOn;
+    saveSetting('musicOn', musicOn);
+    applyMusicUI();
+    if (musicOn) startMusic(); else stopMusic();
+});
+
+musicVolumeSlider.addEventListener('input', (e) => {
+    setMusicVolume(parseInt(e.target.value, 10) / 100);
+    saveSetting('musicVolume', musicVolume);
+});
+
+applyMusicUI();
+
+// =====================================================================
+// Controls Remapping
+// =====================================================================
+
+// Friendly display names for keys that don't read well as raw e.key values
+const KEY_DISPLAY_NAMES = {
+    arrowup: '↑', arrowdown: '↓', arrowleft: '←', arrowright: '→',
+    ' ': 'Space', control: 'Ctrl', shift: 'Shift', alt: 'Alt',
+    escape: 'Esc', enter: 'Enter', tab: 'Tab'
+};
+
+function displayKeyName(key) {
+    if (KEY_DISPLAY_NAMES[key]) return KEY_DISPLAY_NAMES[key];
+    if (key.length === 1) return key.toUpperCase();
+    return key.charAt(0).toUpperCase() + key.slice(1);
+}
+
+function refreshRemapLabels() {
+    document.querySelectorAll('.remap-btn').forEach(btn => {
+        const dir = btn.dataset.direction;
+        const keys = keybinds[dir] || [];
+        btn.textContent = keys.length ? keys.map(displayKeyName).join(' / ') : '—';
+        btn.classList.remove('listening');
+    });
+}
+
+let remapListenDirection = null;
+
+function startRemapListening(direction, btn) {
+    // Cancel any other button still waiting for input
+    document.querySelectorAll('.remap-btn').forEach(b => b.classList.remove('listening'));
+    remapListenDirection = direction;
+    btn.classList.add('listening');
+    btn.textContent = 'Press a key…';
+}
+
+window.addEventListener('keydown', (e) => {
+    if (!remapListenDirection) return;
+    e.preventDefault();
+
+    const newKey = e.key.toLowerCase();
+    const direction = remapListenDirection;
+    remapListenDirection = null;
+
+    // Don't allow Escape to become a movement key - it's reserved for
+    // closing menus, and binding it here would create a confusing trap.
+    if (newKey === 'escape') {
+        refreshRemapLabels();
+        return;
+    }
+
+    // Remove this key from any other direction first, so the same key
+    // can't accidentally drive two directions at once.
+    Object.keys(keybinds).forEach(dir => {
+        keybinds[dir] = keybinds[dir].filter(k => k !== newKey);
+    });
+
+    keybinds[direction] = [newKey];
+    saveKeybinds();
+    refreshRemapLabels();
+});
+
+document.querySelectorAll('.remap-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        startRemapListening(btn.dataset.direction, btn);
+    });
+});
+
+document.getElementById('controls-reset-btn').addEventListener('click', () => {
+    keybinds = JSON.parse(JSON.stringify(DEFAULT_KEYBINDS));
+    saveKeybinds();
+    refreshRemapLabels();
 });
 
 // =====================================================================
@@ -1258,6 +1549,20 @@ document.getElementById('dev-speed').addEventListener('input', (e) => {
     document.getElementById('dev-speed-val').textContent = devSpeedMultiplier.toFixed(2) + 'x';
 });
 
+function stepDevSpeed(delta) {
+    const slider = document.getElementById('dev-speed');
+    const min = parseFloat(slider.min);
+    const max = parseFloat(slider.max);
+    let next = Math.round((devSpeedMultiplier + delta) * 100) / 100;
+    next = Math.min(max, Math.max(min, next));
+    devSpeedMultiplier = next;
+    slider.value = next;
+    document.getElementById('dev-speed-val').textContent = next.toFixed(2) + 'x';
+}
+
+document.getElementById('dev-speed-up').addEventListener('click', () => stepDevSpeed(0.1));
+document.getElementById('dev-speed-down').addEventListener('click', () => stepDevSpeed(-0.1));
+
 document.getElementById('dev-godmode-btn').addEventListener('click', (e) => {
     godMode = !godMode;
     e.target.classList.toggle('is-on', godMode);
@@ -1295,12 +1600,18 @@ document.getElementById('dev-spawn-boss').addEventListener('click', () => {
 
 document.getElementById('dev-give-all').addEventListener('click', () => {
     if (!gameInterval) return;
-    hp = 5;
+    maxHpCap = Math.max(maxHpCap, 7);
+    hp = maxHpCap;
     shieldCount = Math.max(shieldCount, 3);
     hasSpikes = true;
     attackSpeed = Math.max(attackSpeed, 4.5);
     maxFoodCount = Math.max(maxFoodCount, 4);
     speedBonus = Math.max(speedBonus, 0.15);
+    scoreMultiplier = Math.max(scoreMultiplier, 2);
+    hasSecondWind = true;
+    secondWindUsed = false;
+    enemySpawnReduction = Math.max(enemySpawnReduction, 0.3);
+    hasSplashDamage = true;
     refillFood();
     updateHUD();
 });

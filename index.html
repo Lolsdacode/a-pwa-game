@@ -14,6 +14,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
 </head>
 <body>
     <div id="game-container">
@@ -40,9 +42,37 @@
                 <button id="theme-toggle-btn" class="toggle-btn" aria-label="Toggle dark/light mode"></button>
             </div>
             <div class="option-row">
-                <span class="option-label">Sound</span>
-                <button id="sound-toggle-btn" class="toggle-btn" aria-label="Toggle sound"></button>
+                <span class="option-label">Sound Effects</span>
+                <button id="sound-toggle-btn" class="toggle-btn" aria-label="Toggle sound effects"></button>
             </div>
+            <div class="option-row">
+                <span class="option-label">Music</span>
+                <button id="music-toggle-btn" class="toggle-btn" aria-label="Toggle music"></button>
+            </div>
+            <div class="option-row" id="music-volume-row">
+                <span class="option-label">Music Volume</span>
+                <input type="range" id="music-volume-slider" min="0" max="100" value="50">
+            </div>
+
+            <div class="options-section-title">Controls</div>
+            <div class="option-row">
+                <span class="option-label">Up</span>
+                <button class="remap-btn" data-direction="up"></button>
+            </div>
+            <div class="option-row">
+                <span class="option-label">Down</span>
+                <button class="remap-btn" data-direction="down"></button>
+            </div>
+            <div class="option-row">
+                <span class="option-label">Left</span>
+                <button class="remap-btn" data-direction="left"></button>
+            </div>
+            <div class="option-row">
+                <span class="option-label">Right</span>
+                <button class="remap-btn" data-direction="right"></button>
+            </div>
+            <button id="controls-reset-btn" class="menu-btn">Reset Controls</button>
+
             <button id="options-back-btn" class="menu-btn">Back</button>
             <p id="dev-unlock-hint" class="hidden">🛠 Dev console unlocked</p>
             <button id="dev-open-btn" class="menu-btn hidden">Open Dev Console</button>
@@ -57,7 +87,9 @@
             <div id="dev-console-body">
                 <div class="dev-row">
                     <label>Speed mult.</label>
+                    <button class="dev-step-btn" id="dev-speed-down">−</button>
                     <input type="range" id="dev-speed" min="0.1" max="1.5" step="0.05" value="1">
+                    <button class="dev-step-btn" id="dev-speed-up">+</button>
                     <span id="dev-speed-val">1.00x</span>
                 </div>
                 <div class="dev-row">
@@ -95,7 +127,7 @@
             <div>Score: <span id="score-val">0</span></div>
             <div>Level: <span id="level-val">1</span></div>
             <div id="xp-bar-container"><div id="xp-bar"></div></div>
-            <div id="hp-row">HP: <canvas id="hp-icons-canvas" width="160" height="28"></canvas></div>
+            <div id="hp-row">HP: <canvas id="hp-icons-canvas" width="280" height="28"></canvas></div>
         </div>
 
         <canvas id="gameCanvas" class="hidden"></canvas>
@@ -120,16 +152,28 @@
 
         <!-- Upgrade overlay when leveling up -->
         <div id="upgrade-screen" class="hidden">
-            <h2>LEVEL UP! Choose a Perk</h2>
+            <div class="upgrade-header">
+                <div class="upgrade-header-tag">SPECIMEN MUTATION DETECTED</div>
+                <h2>LEVEL <span id="upgrade-level-num">2</span></h2>
+                <div class="upgrade-header-sub">Choose an adaptation</div>
+            </div>
             <div id="upgrade-options"></div>
         </div>
 
         <!-- Game Over overlay -->
         <div id="game-over-screen" class="hidden">
-            <h2>GAME OVER</h2>
-            <p>You reached Level <span id="final-lvl">1</span></p>
-            <button id="restart-btn">Play Again</button>
-            <button id="menu-btn-gameover" class="menu-btn">Main Menu</button>
+            <div class="report-panel">
+                <div class="report-tag">⚠ FIELD REPORT ⚠</div>
+                <h2 class="target-neutralized">TARGET NEUTRALIZED</h2>
+                <div class="report-divider"></div>
+                <div class="report-stats">
+                    <div class="report-stat-row"><span>Specimen Level Reached</span><span id="final-lvl">1</span></div>
+                    <div class="report-stat-row"><span>Final Score</span><span id="final-score">0</span></div>
+                </div>
+                <div class="report-divider"></div>
+                <button id="restart-btn">Re-Initiate Specimen</button>
+                <button id="menu-btn-gameover" class="menu-btn">Main Menu</button>
+            </div>
         </div>
     </div>
 

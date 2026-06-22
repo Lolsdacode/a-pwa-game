@@ -1,6 +1,6 @@
 // Bump this version string whenever you change any cached file,
 // so the browser knows to fetch fresh copies instead of stale ones.
-const CACHE_NAME = 'snake-rogue-v2';
+const CACHE_NAME = 'snake-rogue-v4';
 
 const APP_SHELL_FILES = [
     './',
@@ -9,7 +9,10 @@ const APP_SHELL_FILES = [
     './app.js',
     './manifest.json',
     './icons/icon-192.png',
-    './icons/icon-512.png'
+    './icons/icon-512.png',
+    './icons/favicon-32.png',
+    './icons/favicon-16.png',
+    './icons/apple-touch-icon-180.png'
 ];
 
 self.addEventListener('install', (event) => {

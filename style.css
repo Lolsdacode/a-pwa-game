@@ -112,7 +112,7 @@ body {
 
 #hp-icons-canvas {
     flex: none !important;
-    width: 160px;
+    width: 280px;
     height: 28px;
     background: transparent !important;
 }
@@ -147,31 +147,202 @@ h2 {
     font-size: 28px;
 }
 
+/* ===== Upgrade screen header ===== */
+.upgrade-header {
+    margin-bottom: 22px;
+}
+
+.upgrade-header-tag {
+    font-family: 'Share Tech Mono', 'Courier New', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--accent-bright);
+    opacity: 0.8;
+    margin-bottom: 6px;
+}
+
+.upgrade-header h2 {
+    font-family: 'Audiowide', 'Arial Black', sans-serif;
+    font-size: 26px;
+    margin-bottom: 4px;
+    letter-spacing: 1px;
+}
+
+.upgrade-header h2 span {
+    color: var(--accent-bright);
+    text-shadow: 0 0 10px rgba(0,255,204,0.5);
+}
+
+.upgrade-header-sub {
+    font-size: 13px;
+    opacity: 0.65;
+}
+
+/* ===== Game-over report panel ===== */
+.report-panel {
+    width: 88%;
+    max-width: 340px;
+    background: rgba(20, 20, 38, 0.6);
+    border: 1px solid rgba(255, 0, 127, 0.35);
+    border-radius: 14px;
+    padding: 28px 24px;
+    box-shadow: 0 0 30px rgba(255, 0, 127, 0.12);
+}
+
+.report-tag {
+    font-family: 'Share Tech Mono', 'Courier New', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--pink);
+    opacity: 0.85;
+    margin-bottom: 12px;
+    animation: flicker 3s infinite;
+}
+
+.target-neutralized {
+    font-family: 'Audiowide', 'Arial Black', sans-serif;
+    font-size: 24px;
+    letter-spacing: 1px;
+    color: var(--pink);
+    text-shadow: 0 0 14px rgba(255,0,127,0.5);
+    margin-bottom: 0;
+}
+
+.report-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent);
+    margin: 16px 0;
+}
+
+.report-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.report-stat-row {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'Share Tech Mono', 'Courier New', monospace;
+    font-size: 13px;
+    letter-spacing: 0.5px;
+}
+
+.report-stat-row span:first-child {
+    opacity: 0.7;
+}
+
+.report-stat-row span:last-child {
+    color: var(--accent-bright);
+    font-weight: bold;
+}
+
 #upgrade-options {
     display: flex;
     flex-direction: column;
-    gap: 15px;
+    gap: 14px;
     width: 100%;
 }
 
 .upgrade-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
     background: var(--card-bg);
     border: 2px solid var(--accent);
-    padding: 15px;
-    border-radius: 8px;
+    padding: 14px 16px;
+    border-radius: 10px;
     cursor: pointer;
-    transition: background 0.2s;
+    text-align: left;
+    transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+    position: relative;
+    overflow: hidden;
 }
 
 .upgrade-card:hover {
     background: var(--card-bg-hover);
+    transform: translateY(-2px);
+}
+
+.upgrade-icon-badge {
+    flex: none;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.06);
+}
+
+.upgrade-card-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.upgrade-rarity-tag {
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    font-weight: bold;
+    opacity: 0.75;
+    margin-bottom: 2px;
 }
 
 .upgrade-title {
-    font-size: 18px;
+    font-size: 17px;
     color: var(--accent-bright);
     font-weight: bold;
-    margin-bottom: 5px;
+    margin-bottom: 3px;
+}
+
+.upgrade-desc {
+    font-size: 12.5px;
+    opacity: 0.85;
+    line-height: 1.3;
+}
+
+/* Common: subtle baseline look, same as before */
+.upgrade-card.rarity-common {
+    border-color: var(--accent);
+}
+
+/* Rare: cyan glow border + badge tint */
+.upgrade-card.rarity-rare {
+    border-color: #00e0ff;
+    box-shadow: 0 0 14px rgba(0, 224, 255, 0.25);
+}
+.upgrade-card.rarity-rare .upgrade-icon-badge {
+    background: rgba(0, 224, 255, 0.15);
+}
+.upgrade-card.rarity-rare .upgrade-rarity-tag {
+    color: #00e0ff;
+}
+
+/* Legendary: gold/orange glow + animated shimmer sweep */
+.upgrade-card.rarity-legendary {
+    border-color: #ffb300;
+    box-shadow: 0 0 18px rgba(255, 179, 0, 0.35);
+}
+.upgrade-card.rarity-legendary .upgrade-icon-badge {
+    background: rgba(255, 179, 0, 0.18);
+}
+.upgrade-card.rarity-legendary .upgrade-rarity-tag {
+    color: #ffb300;
+}
+.upgrade-card.rarity-legendary::after {
+    content: '';
+    position: absolute;
+    top: 0; left: -60%;
+    width: 40%; height: 100%;
+    background: linear-gradient(120deg, transparent, rgba(255,255,255,0.18), transparent);
+    animation: shimmer 2.6s infinite;
+}
+
+@keyframes shimmer {
+    0% { left: -60%; }
+    100% { left: 130%; }
 }
 
 #restart-btn {
@@ -179,10 +350,13 @@ h2 {
     color: white;
     border: none;
     padding: 15px 30px;
-    font-size: 18px;
+    font-size: 16px;
     border-radius: 5px;
     cursor: pointer;
-    margin-top: 20px;
+    margin-top: 4px;
+    width: 100%;
+    font-family: 'Share Tech Mono', 'Courier New', monospace;
+    letter-spacing: 0.5px;
 }
 
 /* Touch D-pad: floats over the bottom-right of the canvas, only really
@@ -363,6 +537,7 @@ h2 {
 
 #menu-btn-gameover {
     margin-top: 10px;
+    width: 100%;
 }
 
 /* ===== Pause Menu ===== */
@@ -392,6 +567,7 @@ h2 {
     align-items: center;
     padding: 30px 20px;
     z-index: 21;
+    overflow-y: auto;
 }
 
 .option-row {
@@ -402,6 +578,52 @@ h2 {
     max-width: 320px;
     padding: 14px 0;
     border-bottom: 1px solid rgba(128,128,128,0.25);
+}
+
+.options-section-title {
+    width: 100%;
+    max-width: 320px;
+    text-align: left;
+    font-size: 12px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    opacity: 0.6;
+    margin-top: 24px;
+    margin-bottom: 4px;
+}
+
+#music-volume-row {
+    gap: 12px;
+}
+
+#music-volume-slider {
+    flex: 1;
+    max-width: 160px;
+}
+
+.remap-btn {
+    background: var(--bg-hud);
+    border: 2px solid var(--accent);
+    color: var(--text-color);
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    min-width: 90px;
+    font-family: 'Share Tech Mono', 'Courier New', monospace;
+}
+
+.remap-btn.listening {
+    background: var(--accent-bright);
+    color: #052;
+    animation: flicker 1s infinite;
+}
+
+#controls-reset-btn {
+    margin-top: 14px;
+    max-width: 320px;
+    font-size: 14px;
+    padding: 10px;
 }
 
 .option-label {
@@ -521,6 +743,18 @@ h2 {
 .dev-row button:hover, .dev-apply-btn:hover {
     background: #0f0;
     color: #000;
+}
+
+.dev-step-btn {
+    width: 28px;
+    height: 28px;
+    flex: none;
+    font-size: 16px;
+    line-height: 1;
+    padding: 0 !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .buttons-row {
